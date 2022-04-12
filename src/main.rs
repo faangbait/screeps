@@ -1,10 +1,12 @@
 use std::collections::HashSet;
 
 use log::*;
-use screeps::{find, prelude::*, Part, ResourceType, ReturnCode, RoomObjectProperties};
+use screeps::{find, prelude::*, Part, Position, ResourceType, ReturnCode, RoomObjectProperties};
 use stdweb::js;
 
+mod greet;
 mod logging;
+mod paths;
 
 fn main() {
     logging::setup_logging(logging::Info);
@@ -89,7 +91,8 @@ fn game_loop() {
                     warn!("couldn't harvest: {:?}", r);
                 }
             } else {
-                creep.move_to(source);
+                let nearest = paths::get_shortest_path(creep.pos(),paths::get_sources_here(&creep).into_iter().map(|source| source.pos()).collect());
+                creep.move_by_path_search_result(&nearest);
             }
         } else {
             if let Some(c) = creep
