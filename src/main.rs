@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use log::*;
 
-use screeps::prelude::*;
+use screeps::{prelude::*, Position};
 use stdweb::js;
 
 mod logging;
@@ -11,7 +13,12 @@ mod architect;
 
 fn main() {
     logging::setup_logging(logging::Info);
-    
+    for creep in screeps::game::creeps::values() {
+        if creep.memory().get::<String>("role").unwrap().is_none() {
+            creep.memory().set("role", creep.name().split_terminator('-').collect::<Vec<&str>>()[0]);
+        }
+    }
+
 
     js! {
         var game_loop = @{game_loop};

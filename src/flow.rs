@@ -1,8 +1,10 @@
+
 use std::collections::HashSet;
-use priority_queue::PriorityQueue;
 
 use log::{debug, info, warn};
-use screeps::{Creep, SharedCreepProperties, HasStore, ResourceType, Part, find::{self, MY_STRUCTURES}, RoomObjectProperties, HasPosition, Source, ReturnCode, Structure, Attackable, look, Room, LookResult};
+use screeps::{Creep, SharedCreepProperties, HasStore, ResourceType, find::{self, MY_STRUCTURES, MY_CONSTRUCTION_SITES}, RoomObjectProperties, HasPosition, Source, ReturnCode, Position, look, Room, Resource, Structure, ConstructionSite, OwnedStructure, Attackable};
+
+use crate::{pathing, spawning};
 
 pub fn start_loop() {
     debug!("top of loop");
@@ -10,105 +12,252 @@ pub fn start_loop() {
 
 
 pub fn prioritize_actions() {
-    let construction = screeps::game::construction_sites::values();
     let creeps = screeps::game::creeps::values();
-    let structures = screeps::game::structures::values();
-    let my_structures = screeps::Room::find(&creeps[0].room().unwrap(),MY_STRUCTURES);
-    // semaphores:
-    //      "pathing"
-    //      "busy"
+    // let structures = screeps::game::structures::values();
+    // let my_structures = screeps::Room::find(&creeps[0].room().unwrap(),MY_STRUCTURES);
+    let mut rooms = screeps::game::spawns::values().iter().map(|spawn|spawn.room().unwrap()).collect::<Vec<Room>>();
+    rooms.dedup_by_key(|room|room.name());
 
-    let my_creeps = creeps.iter()
-        .filter(|&creep| creep.my() && !creep.spawning())
-        .collect::<Vec<&Creep>>();
+    let my_structures = rooms.iter().flat_map(|room| room.find(MY_STRUCTURES)).collect::<Vec<OwnedStructure>>();
+    let construction = rooms.iter().flat_map(|room| room.find(MY_CONSTRUCTION_SITES)).collect::<Vec<ConstructionSite>>();
 
-    let waiting_creeps = creeps.iter()
-        .filter(|&creep| !creep.memory().bool("busy") && !creep.memory().bool("pathing"))
-        .collect::<Vec<&Creep>>();
+    let mut repairs = my_structures.clone();
+    repairs.sort_unstable_by_key(|structure| &structure.hits() - &structure.hits_max());
 
-    let active_creeps = creeps.iter()
-        .filter(|&creep| creep.memory().bool("busy") || creep.memory().bool("pathing"))
-        .collect::<Vec<&Creep>>();
+    let sources = rooms.iter().flat_map(|room| get_sources_in_room(room)).collect::<Vec<Source>>();
+    let mut dropped_resources = rooms.iter().flat_map(|room| room.look_for_at_area(look::RESOURCES, 0..50,0..50)).collect::<Vec<Resource>>();
+    dropped_resources.sort_unstable_by_key(|resource| resource.amount());
 
-    let harvesters = creeps.iter()
-        .filter(|&creep| creep.store_capacity(Some(ResourceType::Energy)) > 0)
-        .collect::<Vec<&Creep>>();
 
-    let builders = creeps.iter()
-        .filter(|&creep| creep.store_used_capacity(Some(ResourceType::Energy)) > 0)
-        .filter(|&creep| creep.body().iter().any(| bodypart| Part::Work == bodypart.clone().part))
-        .collect::<Vec<&Creep>>();
-
-        
-    let sources = get_sources_here(&creeps[0]);
-
-    for (idx, &creep) in my_creeps.iter()
-        .filter(|&&creep| creep.memory().string("role").unwrap() == Some(String::from("harvester")))
-        .enumerate() {
-            let target_source = &sources[idx % sources.len()];
-            if creep.pos().is_near_to(target_source) {
-                let r = creep.harvest(target_source);
-                if r != ReturnCode::Ok {
-                    warn!("couldn't harvest: {:?}", r);
-                }
-            } else {
-                creep.move_to(target_source);
-            }
-    }
-    
-    for (idx, &creep) in my_creeps.iter()
-        .filter(|&&creep| creep.memory().string("role").unwrap() == Some(String::from("hauler")))
-        .enumerate() {
-            
-            if creep.store_used_capacity(Some(ResourceType::Energy)) > 0 {
-                if let Some(c) = creep.room().expect("room is not visible to you").controller() {
-                    if creep.pos().in_range_to(&c,6) {
-                        creep.drop(ResourceType::Energy, Some(creep.store_used_capacity(Some(ResourceType::Energy))));
-                    } else {
-                        creep.move_to(&c);
-                    }
-                }
-            }else {
-                let mut resources = creep.pos().find_in_range(find::DROPPED_RESOURCES, 2500);
-                resources.sort_unstable_by_key(|res| creep.pos().get_range_to(res));
-                resources.reverse();
-                let target_source = &resources[0];
-                creep.move_to(target_source);
-            }
-    }
-    
-    for (idx, &creep) in my_creeps.iter()
-        .filter(|&&creep| creep.memory().string("role").unwrap() == Some(String::from("average")))
-        .enumerate() {
-            if creep.store_used_capacity(Some(ResourceType::Energy)) > 0 {
-                if construction.len() > 0 {
-                    if creep.pos().is_near_to(&construction[0]) {
-                        creep.build(&construction[0]);
-                    } else {
-                        creep.move_to(&construction[0]);
-                    }
-                } else {
-                    if let Some(c) = creep.room().expect("room is not visible to you").controller() {
-                        let r = creep.upgrade_controller(&c);
-                        if r == ReturnCode::NotInRange {
-                        creep.move_to(&c);
-                    } else if r == ReturnCode::NoBodypart {
-                        creep.drop(ResourceType::Energy, Some(creep.store_used_capacity(Some(ResourceType::Energy))));
-                    }
-                }
-            }
-        } else {
-            if let Some(target_source) = creep.pos().find_closest_by_range(find::DROPPED_RESOURCES) {
-                if target_source.pos().is_near_to(creep) {
-                    creep.pickup(&target_source);
-                } else {
-                    creep.move_to(&target_source);
-                }
-            } else {
-                warn!("Nothing to do...");
+    for (idx, creep) in screeps::game::creeps::values()
+        .iter().filter(|&creep| spawning::get_role(creep) == "harvester" && creep.my())
+        .enumerate(){
+            let target = &sources[idx % sources.len()];
+            match creep.harvest(target) {
+                ReturnCode::Ok | ReturnCode::Busy | ReturnCode::Tired | ReturnCode::Full => { continue; },
+                ReturnCode::NotOwner => { warn!("{:?} is not the owner of {:?}", creep.name(), target.pos());},
+                ReturnCode::NoPath => {
+                    pathing::set_waypoint(&creep, &target.pos());
+                    info!("{:?} nopath to {:?}, retrying", &creep.name(), &target.pos());
+                },
+                ReturnCode::InvalidArgs | ReturnCode::NameExists | ReturnCode::NotFound | ReturnCode::InvalidTarget | ReturnCode::NotEnough => todo!(),
+                ReturnCode::NotInRange => {
+                    pathing::set_waypoint(&creep, &target.pos());
+                    info!("{:?} headed to {:?}", &creep.name(), &target.pos());
+                },
+                ReturnCode::NoBodypart => warn!("{:?} doesn't have the required body parts for his job", &creep.name()),
+                ReturnCode::RclNotEnough | ReturnCode::GclNotEnough => warn!("RCL/GCL"),
             }
         }
-    }
+
+    for (idx, creep) in screeps::game::creeps::values()
+        .iter().filter(|&creep| spawning::get_role(creep) == "hauler" && creep.my())
+        .enumerate(){
+            let groundscore = dropped_resources.iter().filter(|&resource| resource.room() == creep.room()).last().expect("Nothing to pick up.");
+            let target = &creep.room().expect("No controller in room").controller().unwrap();
+
+            match creep.pos().in_range_to(target, 4) {
+                true => {
+                    match creep.store_used_capacity(Some(ResourceType::Energy)) {
+                        0 => {
+                                pathing::set_waypoint(&creep, &groundscore.pos());
+                                info!("{:?} headed to {:?}", &creep.name(), &groundscore.pos());
+                            },
+                        _ => match creep.drop(ResourceType::Energy, Some(creep.store_used_capacity(Some(ResourceType::Energy)))) {
+                            ReturnCode::NotOwner => { warn!("{:?} is not the owner of {:?}", creep.name(), target.pos());},
+                            ReturnCode::NoPath => {
+                                pathing::set_waypoint(&creep, &target.pos());
+                                info!("{:?} nopath to {:?}, retrying", &creep.name(), &target.pos());
+                            },
+                            ReturnCode::Ok | ReturnCode::Full | ReturnCode::Tired | ReturnCode::Busy => { continue; },
+                            ReturnCode::NotEnough => {
+                                pathing::set_waypoint(&creep, &groundscore.pos());
+                                info!("{:?} headed to {:?}", &creep.name(), &groundscore.pos());
+                            },
+                            ReturnCode::NameExists | ReturnCode::NotFound | ReturnCode::InvalidTarget | ReturnCode::InvalidArgs => warn!("{} received invalid command", &creep.name()),
+                            ReturnCode::NotInRange => {
+                                pathing::set_waypoint(&creep, &target.pos());
+                                info!("{:?} headed to {:?}", &creep.name(), &target.pos());
+                            },
+                            ReturnCode::NoBodypart => warn!("{:?} doesn't have the required body parts for his job", &creep.name()),
+                            ReturnCode::RclNotEnough | ReturnCode::GclNotEnough => warn!("RCL/GCL"),
+                        }
+                    }
+                },
+                false => {
+                    match creep.store_free_capacity(Some(ResourceType::Energy)) {
+                        // full branch
+                        0..=15 => {
+                            pathing::set_waypoint(&creep, &target.pos());
+                            info!("{:?} headed to {:?}", &creep.name(), &target.pos());
+                        },
+                        _ => match creep.pickup(groundscore) {
+                            ReturnCode::NotOwner => { warn!("{:?} is not the owner of {:?}", creep.name(), groundscore.pos());},
+                            ReturnCode::NoPath => {
+                                pathing::set_waypoint(&creep, &groundscore.pos());
+                                info!("{:?} nopath to {:?}, retrying", &creep.name(), &groundscore.pos());
+                            },
+                            ReturnCode::Ok | ReturnCode::Tired | ReturnCode::Busy => { continue; },
+                            ReturnCode::NameExists | ReturnCode::NotFound | ReturnCode::InvalidTarget | ReturnCode::InvalidArgs => {warn!("{} received invalid command", &creep.name())},
+                            ReturnCode::Full => {
+                                pathing::set_waypoint(&creep, &target.pos());
+                                info!("{:?} headed to {:?}", &creep.name(), &target.pos());
+                            },
+                            ReturnCode::NotEnough | ReturnCode::NotInRange => {
+                                pathing::set_waypoint(&creep, &groundscore.pos());
+                                info!("{:?} headed to {:?}", &creep.name(), &groundscore.pos());
+                            },
+                            ReturnCode::NoBodypart => warn!("{:?} doesn't have the required body parts for his job", &creep.name()),
+                            ReturnCode::RclNotEnough | ReturnCode::GclNotEnough => warn!("RCL/GCL"),
+                        }
+                    };
+                }
+            };
+
+        }
+
+    for (idx, creep) in screeps::game::creeps::values()
+        .iter().filter(|&creep| spawning::get_role(creep) == "builder" && creep.my())
+        .enumerate(){
+            let pickup = &creep.pos().find_closest_by_range(find::DROPPED_RESOURCES).expect("No sources on map");
+            let mut target;
+            let repair = repairs.last().unwrap();
+            if construction.len() > 0 { target = &construction[0]; } else { continue; }
+
+            match construction.len() {
+                // no construction projects
+                0 => match creep.store_used_capacity(Some(ResourceType::Energy)) {
+                    // empty branch
+                    0 => match creep.pickup(pickup) {
+                        ReturnCode::NotOwner => { warn!("{:?} is not the owner of {:?}", creep.name(), pickup.pos());},
+                        ReturnCode::NoPath => {
+                            pathing::set_waypoint(&creep, &pickup.pos());
+                            info!("{:?} nopath to {:?}, retrying", &creep.name(), &pickup.pos());
+                        },
+                        ReturnCode::Ok | ReturnCode::Tired | ReturnCode::Busy => { continue; },
+                        ReturnCode::NameExists | ReturnCode::NotFound | ReturnCode::InvalidTarget | ReturnCode::InvalidArgs => {warn!("{} received invalid command", &creep.name())},
+                        ReturnCode::Full => {
+                            pathing::set_waypoint(&creep, &repair.pos());
+                            info!("{:?} headed to {:?}", &creep.name(), &repair.pos());
+                        },
+                        ReturnCode::NotEnough | ReturnCode::NotInRange => {
+                            pathing::set_waypoint(&creep, &pickup.pos());
+                            info!("{:?} headed to {:?}", &creep.name(), &pickup.pos());
+                        },
+                        ReturnCode::NoBodypart => warn!("{:?} doesn't have the required body parts for his job", &creep.name()),
+                        ReturnCode::RclNotEnough | ReturnCode::GclNotEnough => warn!("RCL/GCL"),
+                    }
+                    _ => match creep.repair(repair) {
+                        ReturnCode::Ok | ReturnCode::Busy | ReturnCode::Full | ReturnCode::Tired => {},
+                        ReturnCode::NotOwner => { warn!("{:?} is not the owner of {:?}", creep.name(), target.pos());},
+                        ReturnCode::NoPath => {
+                            pathing::set_waypoint(&creep, &repair.pos());
+                            info!("{:?} nopath to {:?}, retrying", &creep.name(), &repair.pos());
+                        },
+                        ReturnCode::InvalidTarget | ReturnCode::NotFound | ReturnCode::InvalidArgs | ReturnCode::NameExists => warn!("{:?} cannot target {:?}; invalid", creep.name(), target.pos()),
+                        ReturnCode::NotEnough => { },
+                        ReturnCode::NotInRange => {
+                            pathing::set_waypoint(&creep, &repair.pos());
+                            info!("{:?} nopath to {:?}, retrying", &creep.name(), &repair.pos());
+                        },
+                        ReturnCode::NoBodypart => {
+                            creep.drop(ResourceType::Energy, Some(creep.store_used_capacity(Some(ResourceType::Energy))));
+                        },
+                        ReturnCode::RclNotEnough | ReturnCode::GclNotEnough => warn!("RCL/GCL"),
+                    }
+                },
+                _ => match creep.store_used_capacity(Some(ResourceType::Energy)) {
+                    // empty branch
+                    0 => match creep.pickup(pickup) {
+                        ReturnCode::NotOwner => { warn!("{:?} is not the owner of {:?}", creep.name(), pickup.pos());},
+                        ReturnCode::NoPath => {
+                            pathing::set_waypoint(&creep, &pickup.pos());
+                            info!("{:?} nopath to {:?}, retrying", &creep.name(), &pickup.pos());
+                        },
+                        ReturnCode::Ok | ReturnCode::Tired | ReturnCode::Busy => { continue; },
+                        ReturnCode::NameExists | ReturnCode::NotFound | ReturnCode::InvalidTarget | ReturnCode::InvalidArgs => {warn!("{} received invalid command", &creep.name())},
+                        ReturnCode::Full => {
+                            pathing::set_waypoint(&creep, &target.pos());
+                            info!("{:?} headed to {:?}", &creep.name(), &target.pos());
+                        },
+                        ReturnCode::NotEnough | ReturnCode::NotInRange => {
+                            pathing::set_waypoint(&creep, &pickup.pos());
+                            info!("{:?} headed to {:?}", &creep.name(), &pickup.pos());
+                        },
+                        ReturnCode::NoBodypart => warn!("{:?} doesn't have the required body parts for his job", &creep.name()),
+                        ReturnCode::RclNotEnough | ReturnCode::GclNotEnough => warn!("RCL/GCL"),
+                    }
+                    // full branch
+                    _ => match creep.build(target) {
+                        ReturnCode::Ok | ReturnCode::Busy | ReturnCode::Full | ReturnCode::Tired => {},
+                        ReturnCode::NotOwner => { warn!("{:?} is not the owner of {:?}", creep.name(), target.pos());},
+                        ReturnCode::NoPath => {
+                            pathing::set_waypoint(&creep, &target.pos());
+                            info!("{:?} nopath to {:?}, retrying", &creep.name(), &target.pos());
+                        },
+                        ReturnCode::InvalidTarget | ReturnCode::NotFound | ReturnCode::InvalidArgs | ReturnCode::NameExists => warn!("{:?} cannot target {:?}; invalid", creep.name(), target.pos()),
+                        ReturnCode::NotEnough => { },
+                        ReturnCode::NotInRange => {
+                            pathing::set_waypoint(&creep, &target.pos());
+                            info!("{:?} nopath to {:?}, retrying", &creep.name(), &target.pos());
+                        },
+                        ReturnCode::NoBodypart => {
+                            creep.drop(ResourceType::Energy, Some(creep.store_used_capacity(Some(ResourceType::Energy))));
+                        },
+                        ReturnCode::RclNotEnough | ReturnCode::GclNotEnough => warn!("RCL/GCL"),
+                    }
+                }    
+            }
+        }
+
+    for (idx, creep) in screeps::game::creeps::values()
+        .iter().filter(|&creep| spawning::get_role(creep) == "average" && creep.my())
+        .enumerate(){
+            let pickup = &creep.pos().find_closest_by_range(find::DROPPED_RESOURCES).expect("No sources on map");
+            let target = &creep.room().expect("No controller in room").controller().unwrap();
+
+            match creep.store_used_capacity(Some(ResourceType::Energy)) {
+                // empty branch
+                0 => match creep.pickup(pickup) {
+                    ReturnCode::NotOwner => { warn!("{:?} is not the owner of {:?}", creep.name(), pickup.pos());},
+                    ReturnCode::NoPath => {
+                        pathing::set_waypoint(&creep, &pickup.pos());
+                        info!("{:?} nopath to {:?}, retrying", &creep.name(), &pickup.pos());
+                    },
+                    ReturnCode::Ok | ReturnCode::Tired | ReturnCode::Busy => { continue; },
+                    ReturnCode::NameExists | ReturnCode::NotFound | ReturnCode::InvalidTarget | ReturnCode::InvalidArgs => {warn!("{} received invalid command", &creep.name())},
+                    ReturnCode::Full => {
+                        pathing::set_waypoint(&creep, &target.pos());
+                        info!("{:?} headed to {:?}", &creep.name(), &target.pos());
+                    },
+                    ReturnCode::NotEnough | ReturnCode::NotInRange => {
+                        pathing::set_waypoint(&creep, &pickup.pos());
+                        info!("{:?} headed to {:?}", &creep.name(), &pickup.pos());
+                    },
+                    ReturnCode::NoBodypart => warn!("{:?} doesn't have the required body parts for his job", &creep.name()),
+                    ReturnCode::RclNotEnough | ReturnCode::GclNotEnough => warn!("RCL/GCL"),
+                }
+                // full branch
+                _ => match creep.upgrade_controller(target) {
+                    ReturnCode::Ok | ReturnCode::Busy | ReturnCode::Full | ReturnCode::Tired => {},
+                    ReturnCode::NotOwner => { warn!("{:?} is not the owner of {:?}", creep.name(), target.pos());},
+                    ReturnCode::NoPath => {
+                        pathing::set_waypoint(&creep, &target.pos());
+                        info!("{:?} nopath to {:?}, retrying", &creep.name(), &target.pos());
+                    },
+                    ReturnCode::InvalidTarget | ReturnCode::NotFound | ReturnCode::InvalidArgs | ReturnCode::NameExists => warn!("{:?} cannot target {:?}; invalid", creep.name(), target.pos()),
+                    ReturnCode::NotEnough => { },
+                    ReturnCode::NotInRange => {
+                        pathing::set_waypoint(&creep, &target.pos());
+                        info!("{:?} nopath to {:?}, retrying", &creep.name(), &target.pos());
+                    },
+                    ReturnCode::NoBodypart => {
+                        creep.drop(ResourceType::Energy, Some(creep.store_used_capacity(Some(ResourceType::Energy))));
+                    },
+                    ReturnCode::RclNotEnough | ReturnCode::GclNotEnough => warn!("RCL/GCL"),
+                }
+            }
+        };
 }
 
 pub fn get_sources_here(creep: &Creep) -> Vec<Source> {
@@ -117,6 +266,10 @@ pub fn get_sources_here(creep: &Creep) -> Vec<Source> {
         s.pos().get_range_to(creep);
     });
     sources
+}
+
+pub fn get_sources_in_room(room: &Room) -> Vec<Source> {
+    room.find(find::SOURCES)
 }
 
 pub fn end_loop() {}
