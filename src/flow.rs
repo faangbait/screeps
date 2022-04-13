@@ -42,19 +42,9 @@ pub fn prioritize_actions() {
         
     let sources = get_sources_here(&creeps[0]);
 
-    for (idx, &creep) in my_creeps.iter().enumerate() {
-
-        if creep.memory().bool("harvesting") {
-            if creep.store_free_capacity(Some(ResourceType::Energy)) == 0 {
-                creep.memory().set("harvesting", false);
-            }
-        } else {
-            if creep.store_used_capacity(None) == 0 {
-                creep.memory().set("harvesting", true);
-            }
-        }
-
-        if creep.memory().bool("harvesting") {
+    for (idx, &creep) in my_creeps.iter()
+        .filter(|&&creep| creep.memory().string("role").unwrap() == Some(String::from("harvester")))
+        .enumerate() {
             let target_source = &sources[idx % sources.len()];
             if creep.pos().is_near_to(target_source) {
                 let r = creep.harvest(target_source);
@@ -64,115 +54,62 @@ pub fn prioritize_actions() {
             } else {
                 creep.move_to(target_source);
             }
+    }
+    
+    for (idx, &creep) in my_creeps.iter()
+        .filter(|&&creep| creep.memory().string("role").unwrap() == Some(String::from("hauler")))
+        .enumerate() {
+            
+            if creep.store_used_capacity(Some(ResourceType::Energy)) > 0 {
+                if let Some(c) = creep.room().expect("room is not visible to you").controller() {
+                    if creep.pos().in_range_to(&c,6) {
+                        creep.drop(ResourceType::Energy, Some(creep.store_used_capacity(Some(ResourceType::Energy))));
+                    } else {
+                        creep.move_to(&c);
+                    }
+                }
+            }else {
+                let mut resources = creep.pos().find_in_range(find::DROPPED_RESOURCES, 2500);
+                resources.sort_unstable_by_key(|res| creep.pos().get_range_to(res));
+                resources.reverse();
+                let target_source = &resources[0];
+                creep.move_to(target_source);
+            }
+    }
+    
+    for (idx, &creep) in my_creeps.iter()
+        .filter(|&&creep| creep.memory().string("role").unwrap() == Some(String::from("average")))
+        .enumerate() {
+            if creep.store_used_capacity(Some(ResourceType::Energy)) > 0 {
+                if construction.len() > 0 {
+                    if creep.pos().is_near_to(&construction[0]) {
+                        creep.build(&construction[0]);
+                    } else {
+                        creep.move_to(&construction[0]);
+                    }
+                } else {
+                    if let Some(c) = creep.room().expect("room is not visible to you").controller() {
+                        let r = creep.upgrade_controller(&c);
+                        if r == ReturnCode::NotInRange {
+                        creep.move_to(&c);
+                    } else if r == ReturnCode::NoBodypart {
+                        creep.drop(ResourceType::Energy, Some(creep.store_used_capacity(Some(ResourceType::Energy))));
+                    }
+                }
+            }
         } else {
-            for site in &construction {
-                if creep.pos().in_range_to(site, 1) {
-                    creep.build(site);
-                }
-            }
-            for structure in &my_structures {
-                if creep.pos().in_range_to(structure, 1) && structure.hits() < structure.hits_max() {
-                    creep.repair(structure);
-                }
-            }
-            if let Some(c) = creep
-            .room()
-            .expect("room is not visible to you")
-            .controller()
-            {
-                let r = creep.upgrade_controller(&c);
-                if r == ReturnCode::NotInRange {
-                    creep.move_to(&c);
-                } else if r != ReturnCode::Ok {
-                    warn!("couldn't upgrade: {:?}", r);
+            if let Some(target_source) = creep.pos().find_closest_by_range(find::DROPPED_RESOURCES) {
+                if target_source.pos().is_near_to(creep) {
+                    creep.pickup(&target_source);
+                } else {
+                    creep.move_to(&target_source);
                 }
             } else {
-                warn!("creep room has no controller!");
+                warn!("Nothing to do...");
             }
         }
-   
-        }
     }
-
-
-
-
-
-    // my_creeps.iter()
-    //     .map(|creep| *creep)
-    //     .for_each(|creep| {
-    //         let x = creep.pos().x() as u8;
-    //         let y = creep.pos().y() as u8;
-    //         let room = creep.room().unwrap();
-    //         let n_sources = room.look_for_at_area(look::SOURCES, x-5..x+5, y-5..y+5);
-    //         let n_sites = room.look_for_at_area(look::CONSTRUCTION_SITES, x-5..x+5, y-5..y+5);
-    //         let n_structs = room.look_for_at_area(look::STRUCTURES, x-5..x+5, y-5..y+5);
-    //         let n_deposits = room.look_for_at_area(look::DEPOSITS, x-5..x+5, y-5..y+5);
-            
-    //         if creep.store_free_capacity(Some(ResourceType::Energy)) > 5 {
-    //             if creep.pos().in_range_to(&n_sources[0], 1) {
-    //                 creep.harvest(&n_sources[0]);
-    //             } else {
-    //                 creep.move_to(&n_sources[0]);
-    //             }
-    //         }
-            
-    //         if creep.store_used_capacity(Some(ResourceType::Energy)) > 5 {
-    //             if creep.pos().in_range_to(&n_sites[0], 1) {
-    //                 creep.build(&n_sites[0]);
-    //             } else {
-    //                 creep.move_to(&n_sites[0]);
-    //             }
-    //         }
-    //     });
-
-
-
-
-    // for i in 0..harvesters.len().max(sources.len()) {
-    //     let res = harvesters[i].move_to(&sources[i % sources.len()]);
-    //     if res == ReturnCode::Ok {
-    //     } else {
-    //         warn!("couldn't harvest: {:?}", res);
-    //     }
-    // }
-
-
-    // harvesters.iter()
-    //     .filter(|creep| creep.store_free_capacity(Some(ResourceType::Energy)) < 5 )
-    //     .for_each(|creep| {
-    //         if let Some(c) = creep.room().expect("room is not visible to you").controller() {
-    //             let res = creep.upgrade_controller(&c);
-    //             if res == ReturnCode::NotInRange {
-    //                 creep.move_to(&c);
-    //             } else if res != ReturnCode::Ok {
-    //                 warn!("couldn't upgrade: {:?}", res);
-    //             } else {
-    //                 if creep.store_used_capacity(Some(ResourceType::Energy)) == 0 {
-    //                 } else {
-    //                 }
-    //             }
-
-    //         } else { warn! ("creep room has no controller!");}
-    //     });
-
-    // sources.iter()
-    //     .for_each(|source| {
-    //     harvesters.iter()
-    //         .filter(|&creep| creep.pos().is_near_to(source) && creep.store_free_capacity(Some(ResourceType::Energy)) > 0)
-    //         .for_each(|&creep| { 
-    //             creep.harvest(source); 
-    //         });
-    //     });
-
-    // for &i in builders.iter().filter(|&creep| !&creep.memory().bool("busy")) {
-    //     my_structures.iter()
-    //     .filter(|&structure| structure.hits_max() > structure.hits())
-    //     .for_each(|structure| { i.repair(structure); })
-    // }
-        
-
-
+}
 
 pub fn get_sources_here(creep: &Creep) -> Vec<Source> {
     let mut sources = creep.room().expect("room is not visible to you").find(find::SOURCES);
