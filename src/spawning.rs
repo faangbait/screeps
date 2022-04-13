@@ -42,7 +42,7 @@ impl BodyTemplate {
             name: String::from(format!("{}-{}",templ,screeps::game::time())),
             parts,
             cost,
-            opts: SpawnOptions::new().memory(mem).directions(&[screeps::Direction::Left])
+            opts: SpawnOptions::new().memory(mem).directions(&[screeps::Direction::Left, screeps::Direction::BottomLeft, screeps::Direction::TopLeft])
         };
     }
 }
