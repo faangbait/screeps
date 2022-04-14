@@ -9,10 +9,16 @@ pub fn manage_spawns() {
         debug!("running spawn {}", spawn.name());
         if spawn.is_spawning() { continue; }
         let body = get_desired_body(&spawn);
-        if spawn.energy() >= body.cost + 50 {
-            let res = spawn.spawn_creep_with_options(&body.parts, &body.name, &body.opts);
-            if res != ReturnCode::Ok {
-                warn!("couldn't spawn: {:?}", res);
+        if body.cost == spawn.room().expect("Error in room").energy_capacity_available() {
+            match spawn.spawn_creep_with_options(&body.parts, &body.name, &body.opts) {
+                ReturnCode::Ok => info!("Spawning {:?} at {:?}", &body.name, &spawn.name()),
+                ReturnCode::NoPath => info!("No place to spawn at {:?}", &spawn.name()),
+                ReturnCode::NameExists => info!("Name exists at {:?}", &spawn.name()),
+                ReturnCode::Busy => info!("{:?} busy, can't spawn", &spawn.name()),
+                ReturnCode::NotEnough => {},
+                ReturnCode::RclNotEnough => {},
+                ReturnCode::GclNotEnough => {},
+                _ => warn!("Unhandled return at {:?}", &spawn.name())
             }
         }
     }
@@ -98,7 +104,8 @@ impl BodyTemplate {
                 
         };
         
-        let cost = parts.iter().map(|p| p.cost()).sum();
+        let cost = parts.iter().map(|p| p.cost()).sum::<u32>() + 50;
+        
         let mem = MemoryReference::new();
         mem.set("role", templ.to_string());
 
@@ -114,8 +121,8 @@ impl BodyTemplate {
 
 pub fn get_desired_body(spawn: &StructureSpawn) -> BodyTemplate {
     let creeps = screeps::game::creeps::values();
-    // let energy_cap =  spawn.room().expect("Error in room").energy_capacity_available();
-    let energy_cap =  250;
+    let energy_cap =  spawn.room().expect("Error in room").energy_capacity_available();
+    // let energy_cap =  250;
 
     let harvesters = creeps.iter().filter(|&creep| {
         creep.memory().string("role").unwrap() == Some(String::from("harvester"))
@@ -143,7 +150,7 @@ pub fn get_desired_body(spawn: &StructureSpawn) -> BodyTemplate {
 pub fn reduce_body_cost(mut body: BodyTemplate, cap: u32) -> BodyTemplate {
     while body.cost > cap {
         body.parts.remove(body.parts.len()-1);
-        body.cost = body.parts.iter().map(|p| p.cost()).sum();
+        body.cost = body.parts.iter().map(|p| p.cost()).sum::<u32>() + 50;
     }
 
     body
