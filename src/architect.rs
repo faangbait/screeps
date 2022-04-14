@@ -30,15 +30,14 @@ pub fn get_all_structures() -> Vec<Structure> {
 }
 
 pub fn get_my_repairables() -> Vec<Structure> {
-    let mut attackables = get_my_rooms()
+    let mut repairables = get_my_rooms()
     .iter()
-    .flat_map(|room| room.find(STRUCTURES))
-    .filter(|s| s.as_attackable().map(|st| st.hits_max() > st.hits() + 99).unwrap_or(false))
-    .filter(|s| s.as_owned().map(|st| st.my()).unwrap_or(false))
+    .flat_map(|room| room.find(find::STRUCTURES))
+    .filter(|s| s.as_can_decay().map(|st| st.ticks_to_decay() > 0).unwrap_or(false))
     .collect::<Vec<Structure>>();
-    
-    attackables.sort_by_key(|s| s.as_attackable().map(|st| st.hits()).unwrap_or(999999));
-    attackables
+
+    repairables.sort_by_key(|s| s.as_attackable().map(|st| st.hits()).unwrap_or(999999));
+    repairables
 }
 
 pub fn get_my_buildables() -> Vec<ConstructionSite> {
