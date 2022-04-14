@@ -2,13 +2,10 @@ use std::collections::HashSet;
 
 use log::{debug, info, warn};
 use screeps::{
-    find::{self, MY_CONSTRUCTION_SITES, MY_STRUCTURES, STRUCTURES},
-    look, Attackable, ConstructionSite, Creep, HasPosition, HasStore, OwnedStructure, Position,
-    Resource, ResourceType, ReturnCode, Room, RoomObjectProperties, SharedCreepProperties, Source,
-    Structure, StructureRoad,
+    find, Creep, HasPosition, HasStore, ResourceType, ReturnCode, Room, RoomObjectProperties, SharedCreepProperties, Source,
 };
 
-use crate::{pathing, spawning};
+use crate::{pathing, spawning, architect};
 
 pub fn start_loop() {
     debug!("top of loop");

@@ -1,6 +1,6 @@
 
 use log::{debug, warn, info};
-use screeps::{HasStore, Part, SpawnOptions, ReturnCode, Creep, ResourceType, Spawning, StructureSpawn, SharedCreepProperties, mem_get, memory::MemoryReference, RoomObjectProperties};
+use screeps::{HasStore, Part, SpawnOptions, ReturnCode, Creep, StructureSpawn, SharedCreepProperties, memory::MemoryReference, RoomObjectProperties};
 
 use crate::flow::get_sources_here;
 
@@ -28,10 +28,74 @@ pub struct BodyTemplate {
 impl BodyTemplate {
     fn new(templ:&str) -> BodyTemplate {
         let parts = match templ {
-            "harvester" => vec![Part::Move, Part::Work, Part::Work, Part::Work, Part::Work, Part::Work, Part::Work, Part::Work, Part::Work],
-            "hauler" => vec![Part::Move, Part::Move, Part::Carry, Part::Carry, Part::Move, Part::Carry, Part::Move, Part::Carry, Part::Move],
-            "builder" => vec![Part::Move, Part::Work, Part::Carry, Part::Carry, Part::Move, Part::Work, Part::Carry, Part::Carry],
-            _ => vec![Part::Move, Part::Move, Part::Carry, Part::Work, Part::Move, Part::Move, Part::Carry, Part::Work]
+            "harvester" => vec![
+                Part::Move,
+                Part::Work,
+                Part::Work,
+                Part::Work,
+                Part::Work,
+                Part::Work,
+                Part::Work,
+                Part::Move,
+                Part::Work,
+                Part::Move,
+                Part::Work,
+                Part::Move,
+                Part::Work,
+                Part::Move,
+                Part::Work
+                ],
+            "hauler" => vec![
+                Part::Move, 
+                Part::Move, 
+                Part::Carry, 
+                Part::Carry, 
+                Part::Carry, 
+                Part::Move, 
+                Part::Carry, 
+                Part::Move, 
+                Part::Carry, 
+                Part::Move,
+                Part::Carry, 
+                Part::Move,
+                Part::Carry,
+                Part::Move,
+                ],
+            "builder" => vec![
+                Part::Move, 
+                Part::Work, 
+                Part::Carry, 
+                Part::Carry, 
+                Part::Move, 
+                Part::Work, 
+                Part::Carry, 
+                Part::Move, 
+                Part::Carry, 
+                Part::Carry, 
+                Part::Work, 
+                Part::Work, 
+                Part::Carry, 
+                Part::Carry, 
+                Part::Work, 
+                ],
+            _ => vec![
+                Part::Move, 
+                Part::Work, 
+                Part::Carry, 
+                Part::Carry, 
+                Part::Move, 
+                Part::Work, 
+                Part::Carry, 
+                Part::Move, 
+                Part::Work, 
+                Part::Carry, 
+                Part::Move, 
+                Part::Work, 
+                Part::Carry, 
+                Part::Move, 
+                Part::Work, 
+                ],
+                
         };
         
         let cost = parts.iter().map(|p| p.cost()).sum();

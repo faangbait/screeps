@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+
 
 use log::*;
 
-use screeps::{prelude::*, Position};
+use screeps::prelude::*;
 use stdweb::js;
 
 mod logging;

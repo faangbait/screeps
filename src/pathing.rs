@@ -1,7 +1,7 @@
 // use std::collections::HashMap;
 
 // use log::{info, warn};
-use screeps::{Creep, Position, SharedCreepProperties, HasPosition, ReturnCode, RoomPosition};
+use screeps::{Creep, Position, SharedCreepProperties, ReturnCode};
 
 
 pub fn set_waypoint(creep: &Creep, position: &Position) -> ReturnCode {
