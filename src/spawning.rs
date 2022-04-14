@@ -1,26 +1,36 @@
 
 use log::{debug, warn, info};
-use screeps::{HasStore, Part, SpawnOptions, ReturnCode, Creep, StructureSpawn, SharedCreepProperties, memory::MemoryReference, RoomObjectProperties};
+use screeps::{Part, SpawnOptions, ReturnCode, Creep, StructureSpawn, SharedCreepProperties, memory::MemoryReference, RoomObjectProperties};
 
-use crate::flow::get_sources_here;
+use crate::architect;
 
 pub fn manage_spawns() {
     for spawn in screeps::game::spawns::values() {
         debug!("running spawn {}", spawn.name());
         if spawn.is_spawning() { continue; }
-        let body = get_desired_body(&spawn);
-        if body.cost == spawn.room().expect("Error in room").energy_capacity_available() {
-            match spawn.spawn_creep_with_options(&body.parts, &body.name, &body.opts) {
-                ReturnCode::Ok => info!("Spawning {:?} at {:?}", &body.name, &spawn.name()),
-                ReturnCode::NoPath => info!("No place to spawn at {:?}", &spawn.name()),
-                ReturnCode::NameExists => info!("Name exists at {:?}", &spawn.name()),
-                ReturnCode::Busy => info!("{:?} busy, can't spawn", &spawn.name()),
-                ReturnCode::NotEnough => {},
-                ReturnCode::RclNotEnough => {},
-                ReturnCode::GclNotEnough => {},
-                _ => warn!("Unhandled return at {:?}", &spawn.name())
-            }
+        match get_desired_body(&spawn) {
+            Some(body) => {
+                match spawn.room() {
+                    Some(room) => {
+                        if room.energy_available() >= body.cost {
+                            match spawn.spawn_creep_with_options(&body.parts, &body.name, &body.opts) {
+                                ReturnCode::Ok => info!("Spawning {:?} at {:?}", &body.name, &spawn.name()),
+                                ReturnCode::NoPath => info!("No place to spawn at {:?}", &spawn.name()),
+                                ReturnCode::NameExists => info!("Name exists at {:?}", &spawn.name()),
+                                ReturnCode::Busy => info!("{:?} busy, can't spawn", &spawn.name()),
+                                // ReturnCode::NotEnough => {},
+                                // ReturnCode::RclNotEnough => {},
+                                // ReturnCode::GclNotEnough => {},
+                                _ => warn!("Unhandled return at {:?}", &spawn.name())
+                            }
+                        }
+                    },
+                    None => warn!("Unhandled return at {:?}", &spawn.name()),
+                }    
+            },
+            None => return,
         }
+       
     }
 }
 
@@ -119,41 +129,31 @@ impl BodyTemplate {
 }
 
 
-pub fn get_desired_body(spawn: &StructureSpawn) -> BodyTemplate {
+pub fn get_desired_body(spawn: &StructureSpawn) -> Option<BodyTemplate> {
     let creeps = screeps::game::creeps::values();
     let energy_cap =  spawn.room().expect("Error in room").energy_capacity_available();
-    // let energy_cap =  250;
+    let energy_avail = spawn.room().expect("Error in room").energy_available();
+    let energy_min =  300;
 
-    let harvesters = creeps.iter().filter(|&creep| {
-        creep.memory().string("role").unwrap() == Some(String::from("harvester"))
-    }).collect::<Vec<&Creep>>();
+    let creep_cap = architect::get_sources().len();
     
-    let haulers = creeps.iter().filter(|&creep| {
-        creep.memory().string("role").unwrap() == Some(String::from("hauler"))
-    }).collect::<Vec<&Creep>>();
-
-    let builders = creeps.iter().filter(|&creep| {
-        creep.memory().string("role").unwrap() == Some(String::from("builder"))
-    }).collect::<Vec<&Creep>>();
-    
-    if harvesters.len() < get_sources_here(&creeps[0]).len() {
-        reduce_body_cost(BodyTemplate::new("harvester"), energy_cap)
-    } else if builders.len() < harvesters.len() {
-        reduce_body_cost(BodyTemplate::new("builder"), energy_cap)
-    } else if haulers.len() < harvesters.len() {
-        reduce_body_cost(BodyTemplate::new("hauler"), energy_cap)
-    } else {
+    if get_by_role(&creeps, "harvester").len() < creep_cap {
+        reduce_body_cost(BodyTemplate::new("harvester"), energy_avail.max(energy_min))
+    } else if get_by_role(&creeps, "builder").len() < creep_cap {
+        reduce_body_cost(BodyTemplate::new("builder"), energy_avail.max(energy_min))
+    } else if get_by_role(&creeps, "hauler").len() < creep_cap * 2 {
+        reduce_body_cost(BodyTemplate::new("hauler"), energy_avail.max(energy_min))
+    } else if get_by_role(&creeps, "average").len() < creep_cap {
         reduce_body_cost(BodyTemplate::new("average"), energy_cap)
-    }
+    } else { None }
 }
 
-pub fn reduce_body_cost(mut body: BodyTemplate, cap: u32) -> BodyTemplate {
+pub fn reduce_body_cost(mut body: BodyTemplate, cap: u32) -> Option<BodyTemplate> {
     while body.cost > cap {
         body.parts.remove(body.parts.len()-1);
         body.cost = body.parts.iter().map(|p| p.cost()).sum::<u32>() + 50;
     }
-
-    body
+    Some(body)
 }
 
 pub fn get_role(creep: &Creep) -> String {

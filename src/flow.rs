@@ -52,8 +52,7 @@ pub fn prioritize_actions() {
         }
     }
 
-    for creep in spawning::get_by_role(&screeps::game::creeps::values(), "hauler") {
-        let mut groundscores = architect::get_groundscores();
+    for (idx, creep) in spawning::get_by_role(&screeps::game::creeps::values(), "hauler").iter().enumerate(){
         let mut containers = architect::get_unfull_containers();
         let mut controllers = architect::get_my_controllers();
 
