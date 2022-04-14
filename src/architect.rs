@@ -34,9 +34,10 @@ pub fn get_my_repairables() -> Vec<Structure> {
     .iter()
     .flat_map(|room| room.find(find::STRUCTURES))
     .filter(|s| s.as_can_decay().map(|st| st.ticks_to_decay() > 0).unwrap_or(false))
+    .filter(|s| s.as_attackable().map(|st| st.hits_max() > st.hits() + 50).unwrap_or(true))
     .collect::<Vec<Structure>>();
 
-    repairables.sort_by_key(|s| s.as_attackable().map(|st| st.hits()).unwrap_or(999999));
+    repairables.sort_by_key(|s| s.as_attackable().map(|st| st.hits() as i32 - st.hits_max() as i32).unwrap_or(999999));
     repairables
 }
 
