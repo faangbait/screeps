@@ -159,3 +159,23 @@ pub fn reduce_body_cost(mut body: BodyTemplate, cap: u32) -> BodyTemplate {
 pub fn get_role(creep: &Creep) -> String {
     String::from(creep.memory().string("role").unwrap().expect("No role specified"))
 }
+
+pub fn get_by_role<'a>(creeps: &'a Vec<Creep>, role_name: &'a str) -> Vec<&'a Creep>  {
+
+    creeps
+        .iter()
+        .filter(|&c| c.my())
+        .filter(|&c| !c.spawning())
+        .filter(|&c| {
+            c.memory().string("role")
+                .unwrap_or(Some("notamatch".to_string()))
+                .unwrap_or("notamatch".to_string()) == role_name.to_string()
+            })
+        .collect::<Vec<&Creep>>()
+
+}
+        
+//         .filter_map(|c| String::from(c.memory().string("role")
+//         .filter(|c|  == role_name.to_string())
+//         .collect::<Vec<Creep>>()
+// }
