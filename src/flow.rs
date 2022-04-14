@@ -53,19 +53,20 @@ pub fn prioritize_actions() {
     }
 
     for (idx, creep) in spawning::get_by_role(&screeps::game::creeps::values(), "hauler").iter().enumerate(){
+        let groundscores = architect::get_groundscores();
         let mut containers = architect::get_unfull_containers();
         let mut controllers = architect::get_my_controllers();
 
         containers.sort_by_key(|loc| creep.pos().get_range_to(&loc.pos()));
         controllers.sort_by_key(|loc| creep.pos().get_range_to(&loc.pos()));
 
-        let groundscore = groundscores.first();
         let container = containers.first();
         let controller = controllers.first();
+        let groundscore = groundscores.first();
 
-        match creep.store_free_capacity(Some(ResourceType::Energy)) {
+        match creep.store_used_capacity(Some(ResourceType::Energy)) {
             // full carry
-            0..=20 => match container {
+            20..=9999 => match container {
                 // container available
                 Some(c) => match c.as_transferable() {
                     // valid container
@@ -125,20 +126,30 @@ pub fn prioritize_actions() {
             },
             // not full carry
             _ => match groundscore {
-                Some(c) => match creep.pickup(&c) {
-                    ReturnCode::Ok => debug!("{:?} picked up resources.", creep.name()),
-                    ReturnCode::NotInRange => {
-                        pathing::set_waypoint(&creep, &c.pos());
-                        debug!("{:?} headed to {:?}; pickup", creep.name(), &c.pos());
-                    }
-                    _ => warn!(
-                        "{:?} ran into an invalid branch. {:?}",
-                        creep.name(),
-                        creep.pickup(&c)
-                    ),
-                },
-                None => warn!("{:?} has nothing to do.", creep.name()),
+                Some(_) => {
+                    let c = &groundscores[idx % groundscores.len()];
+                    match creep.pickup(&c) {
+                        ReturnCode::Ok => debug!("{:?} picked up resources.", creep.name()),
+                        ReturnCode::NotInRange => {
+                            pathing::set_waypoint(&creep, &c.pos());
+                            debug!("{:?} headed to {:?}; pickup", creep.name(), &c.pos());
+                        }
+                        _ => warn!(
+                            "{:?} ran into an invalid branch. {:?}",
+                            creep.name(),
+                            creep.pickup(&c)
+                        ),
+                    };
+                }
+                None => {
+                    warn!("{:?} has nothing to do", creep.name());
+                    pathing::set_waypoint(&creep, &creep.room().expect("Nothing to do").controller().unwrap().pos());
+                }
             },
+            
+            
+            
+
         }
     }
 
@@ -159,54 +170,57 @@ pub fn prioritize_actions() {
 
         match creep.store_used_capacity(Some(ResourceType::Energy)) {
             // nothing carried
-            0 => match groundscore {
-                // there is ground loot
-                Some(c) => match creep.pickup(&c) {
-                    ReturnCode::Ok => debug!("{:?} picked up resources.", creep.name()),
-                    ReturnCode::NotInRange => {
-                        pathing::set_waypoint(&creep, &c.pos());
-                        debug!("{:?} headed to {:?}; pickup", creep.name(), &c.pos());
-                    }
-                    _ => warn!(
-                        "{:?} ran into an invalid branch. {:?}",
-                        creep.name(),
-                        creep.pickup(&c)
-                    ),
-                },
-                // no ground loot
-                None => match container {
-                    // there is a container
-                    Some(c) => match c.as_withdrawable() {
-                        Some(c) => match creep.withdraw_amount(
-                            c,
-                            ResourceType::Energy,
-                            creep.store_capacity(Some(ResourceType::Energy))
-                                - creep.store_used_capacity(Some(ResourceType::Energy)),
-                        ) {
-                            ReturnCode::Ok => debug!("{:?} picked up resources.", creep.name()),
-                            ReturnCode::NoPath => {
-                                info!("{:?} nopathed to {:?}", creep.name(), &c.pos())
-                            }
-                            ReturnCode::NotEnough => {
-                                creep.withdraw_all(c, ResourceType::Energy);
-                            }
-                            ReturnCode::NotInRange => {
-                                pathing::set_waypoint(&creep, &c.pos());
-                                debug!("{:?} headed to {:?}; pickup", creep.name(), &c.pos());
-                            }
-                            _ => warn!(
-                                "{:?} ran into an invalid branch. Withdrawing from container",
-                                creep.name()
-                            ),
-                        },
-                        None => warn!(
-                            "{:?} ran into an invalid branch. Container unwithdrawable",
+            0 => match container {
+                // there is a container
+                Some(c) => match c.as_withdrawable() {
+                    Some(c) => match creep.withdraw_amount(
+                        c,
+                        ResourceType::Energy,
+                        creep.store_capacity(Some(ResourceType::Energy))
+                            - creep.store_used_capacity(Some(ResourceType::Energy)),
+                    ) {
+                        ReturnCode::Ok => debug!("{:?} picked up resources.", creep.name()),
+                        ReturnCode::NoPath => {
+                            info!("{:?} nopathed to {:?}", creep.name(), &c.pos())
+                        }
+                        ReturnCode::NotEnough => {
+                            creep.withdraw_all(c, ResourceType::Energy);
+                        }
+                        ReturnCode::NotInRange => {
+                            pathing::set_waypoint(&creep, &c.pos());
+                            debug!("{:?} headed to {:?}; pickup", creep.name(), &c.pos());
+                        }
+                        _ => warn!(
+                            "{:?} ran into an invalid branch. Withdrawing from container",
                             creep.name()
                         ),
                     },
-
+                    None => warn!(
+                        "{:?} ran into an invalid branch. Container unwithdrawable",
+                        creep.name()
+                    ),
+                    
                     // no container
-                    None => warn!("{:?} has nothing to do", creep.name()),
+                    // no ground loot
+                },
+                None => match groundscore {
+                    // there is ground loot
+                    Some(c) => match creep.pickup(&c) {
+                        ReturnCode::Ok => debug!("{:?} picked up resources.", creep.name()),
+                        ReturnCode::NotInRange => {
+                            pathing::set_waypoint(&creep, &c.pos());
+                            debug!("{:?} headed to {:?}; pickup", creep.name(), &c.pos());
+                        }
+                        _ => warn!(
+                            "{:?} ran into an invalid branch. {:?}",
+                            creep.name(),
+                            creep.pickup(&c)
+                        ),
+                    },
+                    None => {
+                        warn!("{:?} has nothing to do", creep.name());
+                        pathing::set_waypoint(&creep, &creep.room().expect("Nothing to do").controller().unwrap().pos());
+                    }
                 },
             },
             // we have resources
@@ -248,7 +262,7 @@ pub fn prioritize_actions() {
 
     for creep in spawning::get_by_role(&screeps::game::creeps::values(), "average") {
         let mut groundscores = architect::get_groundscores();
-        let mut containers = architect::get_full_containers();
+        let mut containers = architect::get_unfull_containers();
         let mut controllers = architect::get_my_controllers();
 
         containers.sort_by_key(|loc| creep.pos().get_range_to(&loc.pos()));
@@ -259,6 +273,7 @@ pub fn prioritize_actions() {
         let controller = controllers.first();
 
         match creep.store_used_capacity(Some(ResourceType::Energy)) {
+            // nothing carried
             0 => match container {
                 // there is a container
                 Some(c) => match c.as_withdrawable() {
@@ -269,6 +284,12 @@ pub fn prioritize_actions() {
                             - creep.store_used_capacity(Some(ResourceType::Energy)),
                     ) {
                         ReturnCode::Ok => debug!("{:?} picked up resources.", creep.name()),
+                        ReturnCode::NoPath => {
+                            info!("{:?} nopathed to {:?}", creep.name(), &c.pos())
+                        }
+                        ReturnCode::NotEnough => {
+                            creep.withdraw_all(c, ResourceType::Energy);
+                        }
                         ReturnCode::NotInRange => {
                             pathing::set_waypoint(&creep, &c.pos());
                             debug!("{:?} headed to {:?}; pickup", creep.name(), &c.pos());
@@ -279,7 +300,7 @@ pub fn prioritize_actions() {
                         ),
                     },
                     None => warn!(
-                        "{:?} ran into an invalid branch. Withdrawing from container",
+                        "{:?} ran into an invalid branch. Container unwithdrawable",
                         creep.name()
                     ),
                 },
@@ -300,9 +321,12 @@ pub fn prioritize_actions() {
                         ),
                     },
                     // no ground loot
-                    None => warn!("{:?} has nothing to do.", creep.name()),
+                    None => warn!("{:?} has nothing to do", creep.name()),
                 },
+    
             },
+            
+            // we have resources
             _ => match controller {
                 Some(c) => match creep.upgrade_controller(&c) {
                     ReturnCode::Ok => debug!("{:?} upgraded controller.", creep.name()),
