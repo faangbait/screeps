@@ -1,5 +1,5 @@
 
-use screeps::{Creep, RoomObjectProperties, Room, find::{MY_CONSTRUCTION_SITES, STRUCTURES, self}, ConstructionSite, Structure, Source, look, Resource, ResourceType, StructureController, HasPosition};
+use screeps::{Creep, RoomObjectProperties, Room, find::{MY_CONSTRUCTION_SITES, STRUCTURES, self}, ConstructionSite, Structure, Source, look, Resource, ResourceType, StructureController, HasPosition, StructureTower};
 
 
 pub fn get_rooms() -> Vec<Room>{
@@ -155,6 +155,15 @@ pub fn get_full_containers() -> Vec<Structure> {
     .collect::<Vec<Structure>>()
 }
 
+pub fn get_towers() -> Vec<StructureTower> {
+    get_my_rooms()
+    .iter()
+    .flat_map(|room| room.find(find::STRUCTURES))
+    .filter_map(|s| match s {
+        Structure::Tower(st) => Some(st),
+        _ => None
+    }).collect::<Vec<StructureTower>>()
+}
 // pub fn nearest_controller(creep: &Creep, controllers: Vec<StructureController>) -> Option<StructureController> {
 //     match creep.room() {
 //         Some(r) => r.controller(),

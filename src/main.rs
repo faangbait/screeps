@@ -10,6 +10,8 @@ mod flow;
 mod spawning;
 mod pathing;
 mod architect; 
+mod towers;
+mod combat;
 
 fn main() {
     logging::setup_logging(logging::Info);
@@ -46,8 +48,9 @@ fn game_loop() {
     debug!("loop starting! CPU: {}", screeps::game::cpu::get_used());
 
     flow::start_loop();
-    spawning::manage_spawns();
-
+    if screeps::game::time() % 12 == 3 { spawning::manage_spawns(); }
+    
+    towers::tower_action();
     flow::prioritize_actions();
     
     flow::manage_memory();
