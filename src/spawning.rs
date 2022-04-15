@@ -1,6 +1,6 @@
 
 use log::{debug, warn, info};
-use screeps::{Part, SpawnOptions, ReturnCode, Creep, StructureSpawn, SharedCreepProperties, memory::MemoryReference, RoomObjectProperties};
+use screeps::{Part, SpawnOptions, ReturnCode, Creep, StructureSpawn, SharedCreepProperties, memory::MemoryReference, RoomObjectProperties, HasStore};
 
 use crate::architect;
 
@@ -8,6 +8,7 @@ pub fn manage_spawns() {
     for spawn in screeps::game::spawns::values() {
         debug!("running spawn {}", spawn.name());
         if spawn.is_spawning() { continue; }
+        if spawn.energy() < 250 { continue; }
         match get_desired_body(&spawn) {
             Some(body) => {
                 match spawn.room() {
@@ -53,13 +54,7 @@ impl BodyTemplate {
                 Part::Work,
                 Part::Work,
                 Part::Move,
-                Part::Work,
                 Part::Move,
-                Part::Work,
-                Part::Move,
-                Part::Work,
-                Part::Move,
-                Part::Work
                 ],
             "hauler" => vec![
                 Part::Move, 
@@ -139,11 +134,11 @@ pub fn get_desired_body(spawn: &StructureSpawn) -> Option<BodyTemplate> {
     
     if get_by_role(&creeps, "harvester").len() < creep_cap {
         reduce_body_cost(BodyTemplate::new("harvester"), energy_avail.max(energy_min))
-    } else if get_by_role(&creeps, "builder").len() < creep_cap {
+    } else if get_by_role(&creeps, "builder").len() < creep_cap +1 {
         reduce_body_cost(BodyTemplate::new("builder"), energy_avail.max(energy_min))
-    } else if get_by_role(&creeps, "hauler").len() < creep_cap * 2 {
+    } else if get_by_role(&creeps, "hauler").len() < creep_cap +1 {
         reduce_body_cost(BodyTemplate::new("hauler"), energy_avail.max(energy_min))
-    } else if get_by_role(&creeps, "average").len() < creep_cap {
+    } else if get_by_role(&creeps, "average").len() < creep_cap +1 {
         reduce_body_cost(BodyTemplate::new("average"), energy_cap)
     } else { None }
 }
