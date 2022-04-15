@@ -38,8 +38,8 @@ pub fn prioritize_actions() {
             ReturnCode::InvalidArgs
             | ReturnCode::NameExists
             | ReturnCode::NotFound
-            | ReturnCode::InvalidTarget
-            | ReturnCode::NotEnough => warn!("{} Invalid args given to harvester", creep.name()),
+            | ReturnCode::InvalidTarget => warn!("{} Invalid args given to harvester", creep.name()),
+            ReturnCode::NotEnough => warn!("{} is out of resources to mine.", creep.name()),
             ReturnCode::NotInRange => {
                 pathing::set_waypoint(&creep, &target.pos());
                 info!("{:?} headed to {:?}", &creep.name(), &target.pos());
@@ -54,7 +54,7 @@ pub fn prioritize_actions() {
 
     for (idx, creep) in spawning::get_by_role(&screeps::game::creeps::values(), "hauler").iter().enumerate(){
         let groundscores = architect::get_groundscores();
-        let mut containers = architect::get_unfull_containers();
+        let mut containers = architect::get_deposit_containers_e();
         let mut controllers = architect::get_my_controllers();
 
         containers.sort_by_key(|loc| creep.pos().get_range_to(&loc.pos()));
@@ -127,17 +127,39 @@ pub fn prioritize_actions() {
             // not full carry
             _ => match groundscore {
                 Some(_) => {
-                    let c = &groundscores[idx % groundscores.len()];
-                    match creep.pickup(&c) {
-                        ReturnCode::Ok => debug!("{:?} picked up resources.", creep.name()),
+                    let gs = &groundscores[idx % groundscores.len()];
+                    match creep.pickup(&gs) {
+                        ReturnCode::Ok => {
+                            debug!("{:?} picked up resources.", creep.name());
+                            // // try to fill from nearby container; fail ok
+                            // match container {
+                            //     Some(c) =>match c.as_withdrawable() {
+                            //         Some(c) => match creep.withdraw_amount(
+                            //             c,
+                            //             ResourceType::Energy,
+                            //             creep.store_capacity(Some(ResourceType::Energy))
+                            //                 - creep.store_used_capacity(Some(ResourceType::Energy)),
+                            //         ) {
+                            //             ReturnCode::Ok => continue,
+                            //             _ => match creep.pickup(&gs) {
+                            //                 _ => continue,
+                            //             },
+                            //             // _ => continue,
+                            //         }
+                            //         None => continue,
+                            //     },
+                            //     None => continue,
+                            // }
+                        }
+                            ,
                         ReturnCode::NotInRange => {
-                            pathing::set_waypoint(&creep, &c.pos());
-                            debug!("{:?} headed to {:?}; pickup", creep.name(), &c.pos());
+                            pathing::set_waypoint(&creep, &gs.pos());
+                            debug!("{:?} headed to {:?}; pickup", creep.name(), &gs.pos());
                         }
                         _ => warn!(
                             "{:?} ran into an invalid branch. {:?}",
                             creep.name(),
-                            creep.pickup(&c)
+                            creep.pickup(&gs)
                         ),
                     };
                 }
@@ -157,7 +179,7 @@ pub fn prioritize_actions() {
         let mut constructions = architect::get_my_buildables();
         let mut repairs = architect::get_my_repairables();
         let mut groundscores = architect::get_groundscores();
-        let mut containers = architect::get_full_containers();
+        let mut containers = architect::get_wd_containers_f();
 
         containers.sort_by_key(|loc| creep.pos().get_range_to(&loc.pos()));
         constructions.sort_by_key(|loc| creep.pos().get_range_to(&loc.pos()));
@@ -217,10 +239,7 @@ pub fn prioritize_actions() {
                             creep.pickup(&c)
                         ),
                     },
-                    None => {
-                        warn!("{:?} has nothing to do", creep.name());
-                        pathing::set_waypoint(&creep, &creep.room().expect("Nothing to do").controller().unwrap().pos());
-                    }
+                    None => warn!("{:?} has nothing to do; no resources", creep.name()),
                 },
             },
             // we have resources
@@ -254,7 +273,28 @@ pub fn prioritize_actions() {
                         ),
                     },
                     // no repair projects
-                    None => warn!("{:?} has nothing to do.", creep.name()),
+                    None => {
+                        warn!("{:?} has nothing to do; upgrading controller", creep.name());
+                        let mut controllers = architect::get_my_controllers();
+                        let controller = controllers.first();
+                        match controller {
+                            Some(c) => match creep.upgrade_controller(&c) {
+                                ReturnCode::Ok => debug!("{:?} upgraded controller.", creep.name()),
+                                ReturnCode::NotInRange => {
+                                    pathing::set_waypoint(&creep, &c.pos());
+                                    debug!("{:?} headed to {:?}; controller", creep.name(), &c.pos());
+                                }
+                                _ => warn!(
+                                    "{:?} ran into an invalid branch. No controller.",
+                                    creep.name()
+                                ),
+                            },
+                            None => warn!(
+                                "{:?} ran into an invalid branch. No controller.",
+                                creep.name()
+                            ),
+                        }
+                    }
                 },
             },
         }
@@ -262,7 +302,7 @@ pub fn prioritize_actions() {
 
     for creep in spawning::get_by_role(&screeps::game::creeps::values(), "average") {
         let mut groundscores = architect::get_groundscores();
-        let mut containers = architect::get_unfull_containers();
+        let mut containers = architect::get_wd_containers_f();
         let mut controllers = architect::get_my_controllers();
 
         containers.sort_by_key(|loc| creep.pos().get_range_to(&loc.pos()));

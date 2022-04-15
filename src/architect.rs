@@ -72,6 +72,65 @@ pub fn get_my_controllers() -> Vec<StructureController>{
         .collect::<Vec<StructureController>>()
 }
 
+pub fn get_wd_containers() -> Vec<Structure> {
+    get_my_rooms()
+        .iter()
+        .flat_map(|room| room.find(find::STRUCTURES))
+        .filter_map(|s| match s {
+            Structure::Container(_) => Some(s),
+            Structure::Storage(_) => Some(s),
+            _ => None,
+        })
+        .collect::<Vec<Structure>>()
+}
+
+pub fn get_deposit_containers() -> Vec<Structure> {
+    get_my_rooms()
+        .iter()
+        .flat_map(|room| room.find(find::STRUCTURES))
+        .filter_map(|s| match s {
+            Structure::Container(_)
+            | Structure::Extension(_)
+            | Structure::Spawn(_)
+            | Structure::Storage(_)
+            | Structure::Tower(_) => Some(s),
+            _ => None,
+        })
+        .collect::<Vec<Structure>>()
+}
+
+pub fn get_deposit_containers_e() -> Vec<Structure> {
+    get_deposit_containers()
+    .iter()
+    .filter(|&s| s.as_has_store().map(|st| st.store_free_capacity(Some(ResourceType::Energy)) > 0).unwrap_or(false))
+    .map(|s| s.to_owned())
+    .collect::<Vec<Structure>>()
+}
+
+pub fn get_deposit_containers_f() -> Vec<Structure> {
+    get_deposit_containers()
+    .iter()
+    .filter(|&s| s.as_has_store().map(|st| st.store_used_capacity(Some(ResourceType::Energy)) == st.store_capacity(Some(ResourceType::Energy))).unwrap_or(false))
+    .map(|s| s.to_owned())
+    .collect::<Vec<Structure>>()
+}
+
+pub fn get_wd_containers_e() -> Vec<Structure> {
+    get_wd_containers()
+    .iter()
+    .filter(|&s| s.as_has_store().map(|st| st.store_free_capacity(Some(ResourceType::Energy)) > 0).unwrap_or(false))
+    .map(|s| s.to_owned())
+    .collect::<Vec<Structure>>()
+}
+
+pub fn get_wd_containers_f() -> Vec<Structure> {
+    get_wd_containers()
+    .iter()
+    .filter(|&s| s.as_has_store().map(|st| st.store_used_capacity(Some(ResourceType::Energy)) > 0).unwrap_or(false))
+    .map(|s| s.to_owned())
+    .collect::<Vec<Structure>>()
+}
+
 pub fn get_my_containers() -> Vec<Structure> {
     get_my_rooms()
         .iter()
