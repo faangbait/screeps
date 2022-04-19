@@ -8,7 +8,7 @@ pub fn manage_spawns() {
     for spawn in screeps::game::spawns::values() {
         debug!("running spawn {}", spawn.name());
         if spawn.is_spawning() { continue; }
-        if spawn.energy() < 250 { continue; }
+        if spawn.room().unwrap().energy_available() < 300 { continue; }
         match get_desired_body(&spawn) {
             Some(body) => {
                 match spawn.room() {

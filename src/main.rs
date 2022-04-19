@@ -48,7 +48,7 @@ fn game_loop() {
     debug!("loop starting! CPU: {}", screeps::game::cpu::get_used());
 
     flow::start_loop();
-    if screeps::game::time() % 12 == 3 { spawning::manage_spawns(); }
+    if screeps::game::time() % 30 == 3 { spawning::manage_spawns(); }
     
     towers::tower_action();
     flow::prioritize_actions();
