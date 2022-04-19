@@ -1,26 +1,22 @@
-
-
-use log::*;
-
-use screeps::prelude::*;
-use stdweb::js;
+#![recursion_limit="500"]
 
 mod logging;
-mod flow;
+mod scheduler;
+mod kv;
+mod filters; 
+mod travel;
+mod util;
+mod logistics;
 mod spawning;
-mod pathing;
-mod architect; 
-mod towers;
-mod combat;
+
+use std::collections::HashSet;
+
+use log::*;
+use stdweb::js;
+
 
 fn main() {
     logging::setup_logging(logging::Info);
-    for creep in screeps::game::creeps::values() {
-        if creep.memory().get::<String>("role").unwrap().is_none() {
-            creep.memory().set("role", creep.name().split_terminator('-').collect::<Vec<&str>>()[0]);
-        }
-    }
-
 
     js! {
         var game_loop = @{game_loop};
@@ -45,17 +41,47 @@ fn main() {
 }
 
 fn game_loop() {
-    debug!("loop starting! CPU: {}", screeps::game::cpu::get_used());
-
-    flow::start_loop();
-    if screeps::game::time() % 12 == 3 { spawning::manage_spawns(); }
-    
-    towers::tower_action();
-    flow::prioritize_actions();
-    
-    flow::manage_memory();
-    flow::end_loop();
-
-    info!("done! cpu: {}", screeps::game::cpu::get_used())
+    pre_loop();
+    if screeps::game::time() % 20 == 0 {
+        spawning::init();
+    }
+    scheduler::scheduler();
+    post_loop();
+    manage_memory();
+    if screeps::game::time() % 4 == 0 {
+        info!("done! cpu: {}", screeps::game::cpu::get_used())
+    }
 }
 
+fn pre_loop() {}
+fn post_loop() {}
+
+fn manage_memory() {
+    let time = screeps::game::time();
+
+    if time % 32 == 3 {
+        info!("running memory cleanup");
+        cleanup_memory().expect("expected Memory.creeps format to be a regular memory object");
+    }
+}
+
+fn cleanup_memory() -> Result<(), Box<dyn std::error::Error>> {
+    let alive_creeps: HashSet<String> = screeps::game::creeps::keys().into_iter().collect();
+
+    let screeps_memory = match screeps::memory::root().dict("creeps")? {
+        Some(v) => v,
+        None => {
+            warn!("not cleaning game creep memory: no Memory.creeps dict");
+            return Ok(());
+        }
+    };
+
+    for mem_name in screeps_memory.keys() {
+        if !alive_creeps.contains(&mem_name) {
+            debug!("cleaning up creep memory of dead creep {}", mem_name);
+            screeps_memory.del(&mem_name);
+        }
+    }
+
+    Ok(())
+}

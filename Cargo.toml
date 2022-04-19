@@ -10,6 +10,7 @@ log = "0.4"
 fern = "0.6"
 screeps-game-api = "0.9"
 priority-queue = "1.2.1"
+# uuid = { version = "0.8.2", features = ["serde", "v4"] }
 
 [profile.release]
 panic = "abort"
