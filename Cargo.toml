@@ -1,6 +1,6 @@
 [package]
-name = "screeps-starter-rust"
-version = "0.0.0"
+name = "faangbait"
+version = "0.0.1"
 authors = []
 edition = "2018"
 
