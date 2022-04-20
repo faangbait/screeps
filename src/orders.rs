@@ -22,7 +22,7 @@ impl WorkRequest for screeps::Source {
             request: JobType::Harvest,
             resource: None,
             work_required: self.energy(),
-            priority: -1 * self.ticks_to_regeneration() as i32,
+            priority: (-1 * self.ticks_to_regeneration() as i32) + 10,
             target: self.untyped_id()
         })
     }
@@ -30,6 +30,8 @@ impl WorkRequest for screeps::Source {
 
 impl WorkRequest for screeps::StructureController {
     fn work_request(self: &Self) -> Option<JobOrder> {
+        if false { self.safe_mode(); }
+
         Some(JobOrder {
             request: JobType::Upgrade,
             resource: Some(ResourceType::Energy),
