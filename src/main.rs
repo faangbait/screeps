@@ -1,12 +1,16 @@
 use std::collections::HashSet;
 
+use contexts::ContextList;
 use log::*;
-use screeps::{find, prelude::*, Part, ResourceType, ReturnCode, RoomObjectProperties};
+use screeps::prelude::*;
 use stdweb::js;
 
 mod logging;
 mod contexts;
 mod schedulers;
+mod jobs;
+// mod travel;
+mod util;
 
 fn main() {
     logging::setup_logging(logging::Info);
@@ -34,6 +38,17 @@ fn main() {
 }
 
 fn game_loop() {
+
+    let context_list = ContextList::new();
+
+
+
+
+
+
+
+
+
     let time = screeps::game::time();
 
     if time % 32 == 3 {

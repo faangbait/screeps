@@ -7,6 +7,11 @@ use crate::contexts::{Context, ContextList};
 /// If the element is at the start of the list, dequeue it and set the list to its next element, returning the element.
 /// Otherwise N's neighbors are reassigned to identify each other as their next and previous neighbor, returning the
 /// result of N.
-pub fn hrrn(pq: ContextList) -> Context {
-    Context {}
+pub fn hrrn(mut pq: ContextList) -> Option<Context> {
+    let highest_prio = pq.queue.pop();
+
+    match highest_prio {
+        Some((context, _)) => Some(context),
+        None => None,
+    }
 }
