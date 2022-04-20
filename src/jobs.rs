@@ -1,4 +1,4 @@
-use screeps::{Part, HasId, HasPosition, HasStore, SharedCreepProperties, ResourceType};
+use screeps::{Part, HasId, HasPosition, HasStore, SharedCreepProperties, ResourceType, RoomObjectProperties};
 
 use crate::util::CreepCustomActions;
 
@@ -21,11 +21,12 @@ pub enum JobType {
     Scout,
 }
 
-
 pub trait JobProperties {
     fn has_parts_for_job(&self, job_type: JobType) -> bool;
     fn job_runtime(&self, target: &dyn HasId, job_type: JobType) -> (u32, u32, u32);
     fn fatigue_to(&self, target: &dyn HasId) -> u32;
+    fn resource_sink(&self) -> Option<ResourceType>;
+    fn resource_source(&self) -> Option<ResourceType>;
 }
 
 impl JobProperties for screeps::Creep {
@@ -142,4 +143,39 @@ impl JobProperties for screeps::Creep {
 
         return self.fatigue() / (2 * body_move) + self.fatigue() % (2 * body_move) + search_results.cost;
     }
+
+    fn resource_sink(&self) -> Option<ResourceType> {
+        None
+    }
+    fn resource_source(&self) -> Option<ResourceType> {
+        None
+    }
+}
+
+impl JobProperties for screeps::StructureTower{
+    fn has_parts_for_job(&self, job_type: JobType) -> bool {
+        match job_type {
+            JobType::Repair
+            | JobType::AttackR
+            | JobType::DefendR
+            | JobType::Heal => true,
+            _ => false,
+        }
+    }
+    fn job_runtime(&self, target: &dyn HasId, job_type: JobType) -> (u32, u32, u32) {
+        let amount = match job_type {
+            JobType::Repair => 800,
+            JobType::AttackR => 600,
+            JobType::DefendR => 600,
+            JobType::Heal => 400,
+            _ => 0,
+        };
+
+        let range = self.pos().get_range_to(target).min(20).max(5);
+        (0,1, amount - (amount * (range - 5) / 20))
+
+    }
+    fn fatigue_to(&self, target: &dyn HasId) -> u32 { if target.room() == self.room() { 0 } else { 100000 } }
+    fn resource_sink(&self) -> Option<ResourceType> { Some(ResourceType::Energy) }
+    fn resource_source(&self) -> Option<ResourceType> { None }
 }
