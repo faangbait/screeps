@@ -5,6 +5,8 @@ use screeps::{find, prelude::*, Part, ResourceType, ReturnCode, RoomObjectProper
 use stdweb::js;
 
 mod logging;
+mod contexts;
+mod schedulers;
 
 fn main() {
     logging::setup_logging(logging::Info);
