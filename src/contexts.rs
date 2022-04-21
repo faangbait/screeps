@@ -28,7 +28,7 @@ pub enum ContextStatus {
     Finished= 5,
 }
 
-impl Context {
+impl Context { 
     // pub fn new(creep: &screeps::Creep, target: &dyn screeps::HasId, job_type: JobType) -> Option<Self> { 
     pub fn new(creep: &screeps::Creep, target: &dyn screeps::HasId, request: JobBid) -> Option<Self> {         
         if !creep.has_parts_for_job(request.request) { return None };
@@ -82,12 +82,12 @@ pub struct ContextMap {
 
 impl ContextMap {
     pub fn new() -> Self { Self { map: HashMap::<RawObjectId, Context>::new() } }
-    pub fn create(mut self: Self, obj: &RawObjectId, context: &Context) {
-        self.map.insert(*obj, *context);
+    pub fn create(mut self: Self, creep_id: &RawObjectId, context: &Context) {
+        self.map.insert(*creep_id, *context);
 
         let mem = screeps::memory::root();
         let mut path = "contexts.".to_string();
-        path.push_str(&obj.to_string());
+        path.push_str(&creep_id.to_string());
         let serialized_context = serde_json::to_string(context);
         
         match serialized_context {
@@ -96,15 +96,15 @@ impl ContextMap {
         }
     }
 
-    pub fn read(self: &Self, obj: &RawObjectId) -> Option<Context> {
-        let kv = self.map.get_key_value(obj);
+    pub fn read(self: &Self, creep_id: &RawObjectId) -> Option<Context> {
+        let kv = self.map.get_key_value(creep_id);
 
         match kv {
             Some(v) => return Some(*v.1),
             None => {
                 let mem = screeps::memory::root();
                 let mut path = "contexts.".to_string();
-                path.push_str(&obj.to_string());
+                path.push_str(&creep_id.to_string());
 
                 let serialized_context = mem.get_path::<String>(&path);
                 
@@ -124,11 +124,11 @@ impl ContextMap {
 
     }
 
-    pub fn update(mut self: Self, obj: &RawObjectId, context: &Context) {
-        self.map.insert(*obj, *context);
+    pub fn update(mut self: Self, creep_id: &RawObjectId, context: &Context) {
+        self.map.insert(*creep_id, *context);
         let mem = screeps::memory::root();
         let mut path = "contexts.".to_string();
-        path.push_str(&obj.to_string());
+        path.push_str(&creep_id.to_string());
         let serialized_context = serde_json::to_string(context);
         
         match serialized_context {
@@ -136,8 +136,8 @@ impl ContextMap {
             Err(e) => warn!("Serialization error: {:?}, {:?}", e, context),
         }
     }
-    pub fn delete(mut self: Self, obj: &RawObjectId) {
-        self.map.remove(obj);
+    pub fn delete(mut self: Self, creep_id: &RawObjectId) {
+        self.map.remove(creep_id);
         let mem = screeps::memory::root();
         let mut path = "contexts.".to_string();
         mem.del(&path);

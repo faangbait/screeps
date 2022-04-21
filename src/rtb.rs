@@ -1,7 +1,7 @@
-use std::convert::TryInto;
+use std::collections::HashMap;
 
-use priority_queue::PriorityQueue;
-use screeps::{RoomObjectProperties, LookResult, RawObjectId, ResourceType, HasId, Attackable, HasStore, SharedCreepProperties, HasPosition, RoomObject};
+use log::warn;
+use screeps::{RoomObjectProperties, LookResult, RawObjectId, ResourceType, HasId, Attackable, HasStore, SharedCreepProperties, HasPosition};
 
 use crate::jobs::JobType;
 use crate::util::RoomCustomActions;
@@ -35,7 +35,7 @@ pub enum SinkSources {
     Storage = 24,
     Terminal = 25,
     Tower = 26,
-    Wall = 27
+    Wall = 27,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -852,26 +852,139 @@ impl SourceNode for screeps::StructureLab {
     }
 }
 
-// #[derive(Debug, Clone, Eq, PartialEq)]
-// pub struct BidList {
-//     pub queue: Vec<(JobBid, i32)>,
-// }
+pub struct BidMap {
+    pub map: HashMap<RawObjectId, JobBid>,
+}
+impl BidMap {
+    pub fn new() -> Self { Self { map: HashMap::<RawObjectId,JobBid>::new() } }
 
-// impl BidList {
-//     pub fn new() -> Self { Self { queue: vec![] } }
-//     pub fn add(mut self: Self, job: JobBid) {
-//         self.queue.push( (job, job.bid.try_into().unwrap_or(0)));
-//     }
-// }
+    pub fn create(mut self: Self, sink_id: &RawObjectId, job: &JobBid) {
+        self.map.insert(*sink_id, *job);
+    
+        let mem = screeps::memory::root();
+        let mut path = "bids.".to_string();
+        path.push_str(&sink_id.to_string());
+        let serialized_bid = serde_json::to_string(job);
+        
+        match serialized_bid {
+            Ok(k) => mem.path_set(&path, k),
+            Err(e) => warn!("Serialization error: {:?}", e),
+        }
+    }
+    
+    pub fn read(self: &Self, sink_id: &RawObjectId) -> Option<JobBid> {
+        let kv = self.map.get_key_value(sink_id);
+    
+        match kv {
+            Some(v) => return Some(*v.1),
+            None => {
+                let mem = screeps::memory::root();
+                let mut path = "bids.".to_string();
+                path.push_str(&sink_id.to_string());
+    
+                let serialized_bid = mem.get_path::<String>(&path);
+                
+                match serialized_bid {
+                    Ok(k) => match k {
+                        Some(bid_json) => match serde_json::from_str::<JobBid>(&bid_json) {
+                            Ok(bid) => return Some(bid),
+                            Err(e) => warn!("Deerialization error: {:?}", &e),
+                        },
+                        None => return None,
+                    },
+                    Err(e) => warn!("Path not found: {:?}", &e),
+                };
+            },
+        };
+        return None
+    }
+    
+    pub fn update(mut self: Self, sink_id: &RawObjectId, job: &JobBid) {
+        self.map.insert(*sink_id, *job);
+        let mem = screeps::memory::root();
+        let mut path = "bids.".to_string();
+        path.push_str(&sink_id.to_string());
+        let serialized_bid = serde_json::to_string(job);
+        
+        match serialized_bid {
+            Ok(k) => mem.path_set(&path, k),
+            Err(e) => warn!("Serialization error: {:?}", &e),
+        }
+    }
+    pub fn delete(mut self: Self, sink_id: &RawObjectId) {
+        self.map.remove(sink_id);
+        let mem = screeps::memory::root();
+        let mut path = "bids.".to_string();
+        mem.del(&path);
+    }
+        
+}
 
-// #[derive(Debug, Clone, Eq, PartialEq)]
-// pub struct AskList {
-//     pub queue: Vec<(JobAsk, i32)>,
-// }
+pub struct AskMap {
+    pub map: HashMap<RawObjectId, JobAsk>,
+}
 
-// impl AskList {
-//     pub fn new() -> Self { Self { queue: vec![] } }
-//     pub fn add(mut self: Self, job: JobAsk) {
-//         self.queue.push( (job, (job.ask as i32).checked_mul(-1).unwrap_or(-1000000)));
-//     }
-// }
+impl AskMap {
+    pub fn new() -> Self { Self { map: HashMap::<RawObjectId,JobAsk>::new() } }
+
+    pub fn create(mut self: Self, source_id: &RawObjectId, job: &JobAsk) {
+        self.map.insert(*source_id, *job);
+    
+        let mem = screeps::memory::root();
+        let mut path = "asks.".to_string();
+        path.push_str(&source_id.to_string());
+        let serialized_ask = serde_json::to_string(job);
+        
+        match serialized_ask {
+            Ok(k) => mem.path_set(&path, k),
+            Err(e) => warn!("Serialization error: {:?}",&e),
+        }
+    }
+    
+    pub fn read(self: &Self, source_id: &RawObjectId) -> Option<JobAsk> {
+        let kv = self.map.get_key_value(source_id);
+    
+        match kv {
+            Some(v) => return Some(*v.1),
+            None => {
+                let mem = screeps::memory::root();
+                let mut path = "asks.".to_string();
+                path.push_str(&source_id.to_string());
+    
+                let serialized_ask = mem.get_path::<String>(&path);
+                
+                match serialized_ask {
+                    Ok(k) => match k {
+                        Some(ask_json) => match serde_json::from_str::<JobAsk>(&ask_json) {
+                            Ok(ask) => return Some(ask),
+                            Err(e) => warn!("Deerialization error: {:?}", &e),
+                        },
+                        None => return None,
+                    },
+                    Err(e) => warn!("Path not found: {:?}", &e),
+                };
+            },
+        };
+        return None
+    }
+    
+    pub fn update(mut self: Self, source_id: &RawObjectId, job: &JobAsk) {
+        self.map.insert(*source_id, *job);
+        let mem = screeps::memory::root();
+        let mut path = "asks.".to_string();
+        path.push_str(&source_id.to_string());
+        let serialized_ask = serde_json::to_string(job);
+        
+        match serialized_ask {
+            Ok(k) => mem.path_set(&path, k),
+            Err(e) => warn!("Serialization error: {:?}", &e),
+        }
+    }
+    pub fn delete(mut self: Self, source_id: &RawObjectId) {
+        self.map.remove(source_id);
+        let mem = screeps::memory::root();
+        let mut path = "asks.".to_string();
+        mem.del(&path);
+    }
+        
+}
