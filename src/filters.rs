@@ -1,6 +1,3 @@
-
-use crate::rtb::{Sink, Source};
-
 pub fn get_my_rooms() -> Vec<screeps::Room> {
     let mut rooms: Vec<screeps::Room> = screeps::game::spawns::values()
     .iter()
@@ -190,3 +187,33 @@ pub fn get_groundscores() -> Vec<screeps::Resource> {
         .collect()
 }
 
+
+pub fn get_my_roads() -> Vec<screeps::StructureRoad> {
+    get_my_rooms()
+    .iter()
+    .flat_map(|r| r.find(screeps::find::STRUCTURES))
+    .filter_map(|s| match s {
+        screeps::Structure::Road(st) => Some(st),
+        _ => None,
+    }).collect()
+}
+
+pub fn get_my_walls() -> Vec<screeps::StructureWall> {
+    get_my_rooms()
+    .iter()
+    .flat_map(|r| r.find(screeps::find::STRUCTURES))
+    .filter_map(|s| match s {
+        screeps::Structure::Wall(st) => Some(st),
+        _ => None,
+    }).collect()
+}
+
+pub fn get_my_ramparts() -> Vec<screeps::StructureRampart> {
+    get_my_rooms()
+    .iter()
+    .flat_map(|r| r.find(screeps::find::STRUCTURES))
+    .filter_map(|s| match s {
+        screeps::Structure::Rampart(st) => Some(st),
+        _ => None,
+    }).collect()
+}
