@@ -1,7 +1,5 @@
 use screeps::{Part, HasId, HasPosition, HasStore, SharedCreepProperties, ResourceType, RoomObjectProperties};
 
-use crate::util::CreepCustomActions;
-
 #[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub enum JobType {
     Build,
@@ -23,6 +21,7 @@ pub enum JobType {
 }
 
 pub trait JobProperties {
+    fn count_bp_vec(self: &Self, part_array: Vec<screeps::Part>) -> Vec<u32>;
     fn has_parts_for_job(&self, job_type: JobType) -> bool;
     fn job_runtime(&self, target: &dyn HasId, job_type: JobType) -> (u32, u32, u32);
     fn fatigue_to(&self, target: &dyn HasId) -> u32;
@@ -31,6 +30,14 @@ pub trait JobProperties {
 }
 
 impl JobProperties for screeps::Creep {
+    fn count_bp_vec(self: &Self, part_array: Vec<screeps::Part>) -> Vec<u32> {
+        let mut res = vec![];
+        for part in part_array {
+            res.push(self.get_active_bodyparts(part));
+        }
+        return res
+    }
+
     fn has_parts_for_job(&self, job_type: JobType) -> bool {
         let mut bp_reqs = vec![];
 
@@ -65,8 +72,8 @@ impl JobProperties for screeps::Creep {
             JobType::Repair => self.get_active_bodyparts(Part::Work) * 100,
             JobType::Station => 1,
             JobType::Upgrade => self.get_active_bodyparts(Part::Work) * 5, // TODO: Check this
-            JobType::Transfer => self.store_used_capacity(None) as u32,
-            JobType::Withdraw => self.store_free_capacity(None) as u32,
+            JobType::Transfer => self.store_used_capacity(None) as u32, // TODO: None?
+            JobType::Withdraw => self.store_free_capacity(None) as u32, // TODO: None?
             JobType::Pickup => self.get_active_bodyparts(Part::Carry) * 50,
             JobType::Claim => self.get_active_bodyparts(Part::Claim),
             JobType::Reserve => self.get_active_bodyparts(Part::Claim),
@@ -157,6 +164,9 @@ impl JobProperties for screeps::Creep {
 }
 
 impl JobProperties for screeps::StructureTower{
+    fn count_bp_vec(self: &Self, part_array: Vec<screeps::Part>) -> Vec<u32> {
+        vec![]
+    }
     fn has_parts_for_job(&self, job_type: JobType) -> bool {
         match job_type {
             JobType::Repair

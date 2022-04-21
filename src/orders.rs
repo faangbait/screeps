@@ -439,7 +439,7 @@ impl WorkRequest for screeps::Creep {
                 work_required: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
                 priority: (self.store_capacity(Some(ResourceType::Energy)) - self.energy()) as i32,
                 target: self.untyped_id()
-            })            
+            })
         } else if self.resource_source().is_some() {
             Some(JobOrder {
                 request: JobType::Pickup, // TODO: Will this break?
