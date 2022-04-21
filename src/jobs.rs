@@ -1,23 +1,25 @@
 use screeps::{Part, HasId, HasPosition, HasStore, SharedCreepProperties, ResourceType, RoomObjectProperties};
+use serde::{Serialize, Deserialize};
+use crate::contexts::Context;
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum JobType {
-    Build,
-    Repair,
-    Station,
-    Upgrade,
-    Transfer,
-    Withdraw,
-    Pickup,
-    Harvest,
-    Claim,
-    Reserve,
-    Attack,
-    AttackR,
-    Defend,
-    DefendR,
-    Heal,
-    Scout,
+    Build = 1,
+    Repair = 2,
+    Station = 3,
+    Upgrade = 4,
+    Transfer = 5,
+    Withdraw = 6,
+    Pickup = 7,
+    Harvest = 8,
+    Claim = 9,
+    Reserve = 10,
+    Attack = 11,
+    AttackR = 12,
+    Defend = 13,
+    DefendR = 14,
+    Heal = 15,
+    Scout = 16,
 }
 
 pub trait JobProperties {
@@ -25,8 +27,7 @@ pub trait JobProperties {
     fn has_parts_for_job(&self, job_type: JobType) -> bool;
     fn job_runtime(&self, target: &dyn HasId, job_type: JobType) -> (u32, u32, u32);
     fn fatigue_to(&self, target: &dyn HasId) -> u32;
-    fn resource_sink(&self) -> Option<ResourceType>;
-    fn resource_source(&self) -> Option<ResourceType>;
+    fn context(&self) -> Option<Context>;
 }
 
 impl JobProperties for screeps::Creep {
@@ -155,12 +156,10 @@ impl JobProperties for screeps::Creep {
         return self.fatigue() / (2 * body_move) + self.fatigue() % (2 * body_move) + search_results.cost;
     }
 
-    fn resource_sink(&self) -> Option<ResourceType> {
-        None
+    fn context(&self) -> Option<Context> {
+        todo!()
     }
-    fn resource_source(&self) -> Option<ResourceType> {
-        None
-    }
+
 }
 
 impl JobProperties for screeps::StructureTower{
@@ -190,6 +189,9 @@ impl JobProperties for screeps::StructureTower{
 
     }
     fn fatigue_to(&self, target: &dyn HasId) -> u32 { if target.room() == self.room() { 0 } else { 100000 } }
-    fn resource_sink(&self) -> Option<ResourceType> { Some(ResourceType::Energy) }
-    fn resource_source(&self) -> Option<ResourceType> { None }
+
+    fn context(&self) -> Option<Context> {
+        todo!()
+    }
+
 }

@@ -3,9 +3,10 @@ use screeps::memory::MemoryReference;
 use screeps::{Part, HasStore, RoomObjectProperties, SpawnOptions, StructureSpawn, HasPosition};
 use itertools::Itertools;
 
+use crate::contexts::Context;
 use crate::filters;
 use crate::jobs::{JobProperties, JobType};
-use crate::rtb::Source;
+use crate::rtb::SourceNode;
 
 pub fn init() {
     let spawns = filters::get_my_spawns();
@@ -127,6 +128,14 @@ impl BodyTemplate {
 }
 
 impl JobProperties for BodyTemplate {
+    fn count_bp_vec(self: &Self, part_array: Vec<screeps::Part>) -> Vec<u32> {
+        let mut res = vec![];
+        for part in part_array {
+            res.push(self.body.iter().filter(|&p| *p == part).count() as u32);
+        }
+        return res
+    }
+
     fn has_parts_for_job(&self, job_type: crate::jobs::JobType) -> bool {
         let mut bp_reqs = vec![];
 
@@ -150,14 +159,6 @@ impl JobProperties for BodyTemplate {
         }
         
         bp_reqs.iter().all(|req| self.body.iter().filter(|&p| *p == *req).count() > 0)
-    }
-
-    fn count_bp_vec(self: &Self, part_array: Vec<screeps::Part>) -> Vec<u32> {
-        let mut res = vec![];
-        for part in part_array {
-            res.push(self.body.iter().filter(|&p| *p == part).count() as u32);
-        }
-        return res
     }
 
     fn job_runtime(&self, target: &dyn screeps::HasId, job_type: crate::jobs::JobType) -> (u32, u32, u32) {
@@ -260,11 +261,7 @@ impl JobProperties for BodyTemplate {
         return search_results.cost;
     }
 
-    fn resource_sink(&self) -> Option<screeps::ResourceType> {
-        todo!()
-    }
-
-    fn resource_source(&self) -> Option<screeps::ResourceType> {
-        todo!()
+    fn context(&self) -> Option<Context> {
+        None
     }
 }

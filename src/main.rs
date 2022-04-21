@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
-use contexts::ContextList;
+use contexts::ContextMap;
 use log::*;
-use screeps::{prelude::*, RoomPosition};
 use stdweb::js;
 
 mod contexts;
@@ -17,6 +16,7 @@ mod util;
 mod spawns;
 mod rtb;
 mod world;
+mod flow;
 
 fn main() {
     logging::setup_logging(logging::Info);
@@ -45,7 +45,7 @@ fn main() {
 
 fn game_loop() {
 
-    let context_list = ContextList::new();
+    let context_list = ContextMap::new();
 
     let time = screeps::game::time();
 
