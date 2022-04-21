@@ -18,6 +18,8 @@ pub trait WorkRequest {
 
 impl WorkRequest for screeps::Source {
     fn work_request(self: &Self) -> Option<JobOrder> {
+
+        //TODO "first harvest" to start ticks to regen
         Some(JobOrder {
             request: JobType::Harvest,
             resource: None,
@@ -39,6 +41,16 @@ impl WorkRequest for screeps::StructureController {
             priority: -1 * self.ticks_to_downgrade() as i32,
             target: self.untyped_id()
         })
+        
+        // TODO
+        // Some(JobOrder {
+        //     request: JobType::Reserve,
+        //     resource: None,
+        //     work_required: 10,
+        //     priority: -1 * self.ticks_to_downgrade() as i32,
+        //     target: self.untyped_id()
+        // })
+        
     }
 }
 

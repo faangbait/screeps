@@ -13,6 +13,7 @@ pub enum JobType {
     Pickup,
     Harvest,
     Claim,
+    Reserve,
     Attack,
     AttackR,
     Defend,
@@ -43,6 +44,7 @@ impl JobProperties for screeps::Creep {
             JobType::Pickup => { bp_reqs.extend([Part::Move, Part::Carry].iter()) },
             JobType::Harvest => { bp_reqs.extend([Part::Move, Part::Work].iter()) },
             JobType::Claim => { bp_reqs.extend([Part::Move, Part::Claim].iter()) },
+            JobType::Reserve => { bp_reqs.extend([Part::Move, Part::Claim].iter()) },
             JobType::Attack => { bp_reqs.extend([Part::Move, Part::Attack].iter()) },
             JobType::AttackR => { bp_reqs.extend([Part::Move, Part::RangedAttack].iter()) },
             JobType::Defend => { bp_reqs.extend([Part::Attack].iter()) },
@@ -67,6 +69,7 @@ impl JobProperties for screeps::Creep {
             JobType::Withdraw => self.store_free_capacity(None) as u32,
             JobType::Pickup => self.get_active_bodyparts(Part::Carry) * 50,
             JobType::Claim => self.get_active_bodyparts(Part::Claim),
+            JobType::Reserve => self.get_active_bodyparts(Part::Claim),
             JobType::Attack => self.get_active_bodyparts(Part::Attack) * 30,
             JobType::AttackR => self.get_active_bodyparts(Part::RangedAttack) * 10,
             JobType::Defend => self.get_active_bodyparts(Part::Attack) * 30,
@@ -74,7 +77,7 @@ impl JobProperties for screeps::Creep {
             JobType::Heal => self.get_active_bodyparts(Part::Heal) * 12,
             JobType::Scout => 1,
         };
-
+        //TODO: Harvest duration considers energy remaining
         let job_duration = match job_type {
             JobType::Harvest => self.ticks_to_live().unwrap_or(0),
             JobType::Build => self.store_used_capacity(Some(ResourceType::Energy)) / self.get_active_bodyparts(Part::Work),
@@ -85,6 +88,7 @@ impl JobProperties for screeps::Creep {
             JobType::Withdraw => 1,
             JobType::Pickup => 1,
             JobType::Claim => 1,
+            JobType::Reserve => self.ticks_to_live().unwrap_or(0),
             JobType::Attack => self.ticks_to_live().unwrap_or(0),
             JobType::AttackR => self.ticks_to_live().unwrap_or(0),
             JobType::Defend => self.ticks_to_live().unwrap_or(0),
