@@ -218,6 +218,10 @@ impl JobProperties for BodyTemplate {
     }
 
     fn fatigue_to(&self, target: &dyn screeps::HasId) -> u32 {
+        return self.fatigue_to_pos(&HasPosition::pos(target));
+    }
+
+    fn fatigue_to_pos(&self, pos: &screeps::Position) -> u32 {
         let mut body = self.count_bp_vec(vec![
             Part::Attack,
             Part::Claim,
@@ -245,19 +249,20 @@ impl JobProperties for BodyTemplate {
         let ticks_plain = (1.0 * weight as f32 / body_move as f32).ceil();
         let ticks_swamp = (5.0 * weight as f32 / body_move as f32).ceil();
         
-        let heuristic = self.spawn.pos().get_range_to(target) as f32 * ticks_road;
+        let heuristic = self.spawn.pos().get_range_to(pos) as f32 * ticks_road;
 
         let search_opts = screeps::pathfinder::SearchOptions::default()
             .plain_cost(ticks_plain as u8)
             .swamp_cost(ticks_swamp as u8)
             .heuristic_weight(heuristic.into());
-        let search_results = screeps::pathfinder::search(&self.spawn.pos(), &target.pos(), 1, search_opts);
+        let search_results = screeps::pathfinder::search(&self.spawn.pos(), pos, 1, search_opts);
         
         if search_results.incomplete { return 100000; }
         
         //TODO Visuals
 
         return search_results.cost;
+
     }
 
     fn context(&self) -> Option<Context> {

@@ -53,6 +53,11 @@ pub fn get_my_spawns() -> Vec<screeps::StructureSpawn> {
 //     todo!();
 // }
 
+use itertools::Itertools;
+use screeps::Flag;
+
+use crate::flags::FlagRole;
+
 
 pub fn get_my_containers() -> Vec<screeps::StructureContainer> {
     get_my_rooms()
@@ -216,4 +221,12 @@ pub fn get_my_ramparts() -> Vec<screeps::StructureRampart> {
         screeps::Structure::Rampart(st) => Some(st),
         _ => None,
     }).collect()
+}
+
+pub fn get_my_flags(role: FlagRole) -> Vec<Flag> {
+    screeps::game::flags::values()
+    .iter().filter(|&f| match role {
+        FlagRole::Source => f.name().starts_with("source-"),
+        FlagRole::Scout => f.name().starts_with("scout-"),
+    }).map(|f|f.clone()).collect_vec()
 }

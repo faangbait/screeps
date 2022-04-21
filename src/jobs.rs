@@ -27,6 +27,8 @@ pub trait JobProperties {
     fn has_parts_for_job(&self, job_type: JobType) -> bool;
     fn job_runtime(&self, target: &dyn HasId, job_type: JobType) -> (u32, u32, u32);
     fn fatigue_to(&self, target: &dyn HasId) -> u32;
+    fn fatigue_to_pos(&self, pos: &screeps::Position) -> u32;
+    
     fn context(&self) -> Option<Context>;
 }
 
@@ -115,6 +117,14 @@ impl JobProperties for screeps::Creep {
     /// calculates the fatigue required to arrive at a location
     /// returns the number of ticks the creep will take to arrive there
     fn fatigue_to(&self, target: &dyn HasId) -> u32 {
+        self.fatigue_to_pos(&target.pos())
+    }
+
+    fn context(&self) -> Option<Context> {
+        todo!()
+    }
+
+    fn fatigue_to_pos(&self, pos: &screeps::Position) -> u32 {
         let mut body = self.count_bp_vec(vec![
             Part::Attack,
             Part::Claim,
@@ -129,7 +139,7 @@ impl JobProperties for screeps::Creep {
         let body_move = body.pop().unwrap_or(0);
         let body_carry = body.pop().unwrap_or(0);
 
-        if body_move == 0 && !self.pos().is_near_to(target) { return 100000; }
+        if body_move == 0 && !self.pos().is_near_to(pos) { return 100000; }
 
         let carry_weight = self.store_used_capacity(None) as f32;
         let loaded_carry = (carry_weight / 50.0).ceil() as u32;
@@ -142,23 +152,19 @@ impl JobProperties for screeps::Creep {
         let ticks_plain = (1.0 * weight as f32 / body_move as f32).ceil();
         let ticks_swamp = (5.0 * weight as f32 / body_move as f32).ceil();
         
-        let heuristic = self.pos().get_range_to(target) as f32 * ticks_road;
+        let heuristic = self.pos().get_range_to(pos) as f32 * ticks_road;
 
         let search_opts = screeps::pathfinder::SearchOptions::default()
             .plain_cost(ticks_plain as u8)
             .swamp_cost(ticks_swamp as u8)
             .heuristic_weight(heuristic.into());
-        let search_results = screeps::pathfinder::search(&self.pos(), &target.pos(), 1, search_opts);
+        let search_results = screeps::pathfinder::search(&self.pos(), pos, 1, search_opts);
         
         if search_results.incomplete { return 100000; }
         
         //TODO Visuals
 
         return self.fatigue() / (2 * body_move) + self.fatigue() % (2 * body_move) + search_results.cost;
-    }
-
-    fn context(&self) -> Option<Context> {
-        todo!()
     }
 
 }
@@ -194,5 +200,7 @@ impl JobProperties for screeps::StructureTower{
     fn context(&self) -> Option<Context> {
         todo!()
     }
+
+    fn fatigue_to_pos(&self, pos: &screeps::Position) -> u32 { if pos.room_name() == self.room().unwrap().name() { 0 } else { 100000 } }
 
 }
