@@ -4,7 +4,7 @@ use log::warn;
 use screeps::{RoomObjectProperties, LookResult, RawObjectId, ResourceType, HasId, Attackable, HasStore, SharedCreepProperties, HasPosition};
 
 use crate::jobs::JobType;
-use crate::util::RoomCustomActions;
+use crate::world::RoomCustomActions;
 use serde::{Serialize,Deserialize};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
