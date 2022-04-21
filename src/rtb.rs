@@ -5,39 +5,40 @@ use screeps::{RoomObjectProperties, LookResult, RawObjectId, ResourceType, HasId
 
 use crate::jobs::JobType;
 use crate::util::RoomCustomActions;
+use serde::{Serialize,Deserialize};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum SinkSources {
-    Creep,
-    Energy,
-    Resource,
-    Source,
-    Mineral,
-    Deposit,
-    ConstructionSite,
-    Tombstone,
-    PowerCreep,
-    Structure,
-    Controller,
-    Container,
-    Extension,
-    Extractor,
-    Factory,
-    Lab,
-    Link,
-    Nuker,
-    Observer,
-    PowerSpawn,
-    Rampart,
-    Road,
-    Spawn,
-    Storage,
-    Terminal,
-    Tower,
-    Wall
+    Creep = 1,
+    Energy = 2,
+    Resource = 3,
+    Source = 4,
+    Mineral = 5,
+    Deposit = 6,
+    ConstructionSite = 7,
+    Tombstone = 8,
+    PowerCreep = 9,
+    Structure = 10,
+    Controller = 11,
+    Container = 12,
+    Extension = 13,
+    Extractor = 14,
+    Factory = 15,
+    Lab = 16,
+    Link = 17,
+    Nuker = 18,
+    Observer = 19,
+    PowerSpawn = 20,
+    Rampart = 21,
+    Road = 22,
+    Spawn = 23,
+    Storage = 24,
+    Terminal = 25,
+    Tower = 26,
+    Wall = 27
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct JobBid {
     pub request: JobType,
     pub resource: Option<screeps::ResourceType>,
@@ -47,7 +48,7 @@ pub struct JobBid {
     pub ty: SinkSources,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct JobAsk {
     pub request: JobType,
     pub resource: Option<screeps::ResourceType>,
@@ -851,26 +852,26 @@ impl SourceNode for screeps::StructureLab {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct BidList {
-    pub queue: PriorityQueue<JobBid, i32>,
-}
+// #[derive(Debug, Clone, Eq, PartialEq)]
+// pub struct BidList {
+//     pub queue: Vec<(JobBid, i32)>,
+// }
 
-impl BidList {
-    pub fn new() -> Self { Self { queue: PriorityQueue::<JobBid, i32>::new() } }
-    pub fn add(mut self: Self, job: JobBid) -> Option<i32> {
-        self.queue.push( job, job.bid.try_into().unwrap_or(0))
-    }
-}
+// impl BidList {
+//     pub fn new() -> Self { Self { queue: vec![] } }
+//     pub fn add(mut self: Self, job: JobBid) {
+//         self.queue.push( (job, job.bid.try_into().unwrap_or(0)));
+//     }
+// }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct AskList {
-    pub queue: PriorityQueue<JobAsk, i32>,
-}
+// #[derive(Debug, Clone, Eq, PartialEq)]
+// pub struct AskList {
+//     pub queue: Vec<(JobAsk, i32)>,
+// }
 
-impl AskList {
-    pub fn new() -> Self { Self { queue: PriorityQueue::<JobAsk, i32>::new() } }
-    pub fn add(mut self: Self, job: JobAsk) -> Option<i32> {
-        self.queue.push( job, (job.ask as i32).checked_mul(-1).unwrap_or(-1000000))
-    }
-}
+// impl AskList {
+//     pub fn new() -> Self { Self { queue: vec![] } }
+//     pub fn add(mut self: Self, job: JobAsk) {
+//         self.queue.push( (job, (job.ask as i32).checked_mul(-1).unwrap_or(-1000000)));
+//     }
+// }

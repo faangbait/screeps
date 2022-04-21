@@ -20,7 +20,6 @@ pub struct Context {
 }
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone, Copy, Serialize, Deserialize)]
-
 pub enum ContextStatus {
     Active  = 1,
     Stopped = 2,
@@ -134,7 +133,7 @@ impl ContextMap {
         
         match serialized_context {
             Ok(k) => mem.path_set(&path, k),
-            Err(e) => warn!("Serialization error: {:?}", context),
+            Err(e) => warn!("Serialization error: {:?}, {:?}", e, context),
         }
     }
     pub fn delete(mut self: Self, obj: &RawObjectId) {
@@ -144,7 +143,3 @@ impl ContextMap {
         mem.del(&path);
     }
 }
-
-// pub struct ContextList {
-//     pub queue: PriorityQueue<Context, i32>,
-// }

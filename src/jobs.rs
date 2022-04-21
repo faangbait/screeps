@@ -111,6 +111,7 @@ impl JobProperties for screeps::Creep {
         return (start_ticks, finish_ticks, finish_ticks * contribution_per_tick);
     }
 
+    #[inline]
     /// calculates the fatigue required to arrive at a location
     /// returns the number of ticks the creep will take to arrive there
     fn fatigue_to(&self, target: &dyn HasId) -> u32 {

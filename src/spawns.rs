@@ -1,12 +1,11 @@
-use log::{warn, info};
+use log::info;
 use screeps::memory::MemoryReference;
-use screeps::{Part, HasStore, RoomObjectProperties, SpawnOptions, StructureSpawn, HasPosition};
+use screeps::{Part, RoomObjectProperties, SpawnOptions, StructureSpawn, HasPosition};
 use itertools::Itertools;
 
 use crate::contexts::Context;
 use crate::filters;
 use crate::jobs::{JobProperties, JobType};
-use crate::rtb::SourceNode;
 
 pub fn init() {
     let spawns = filters::get_my_spawns();

@@ -1,24 +1,8 @@
-use screeps::traits::TryInto;
-use screeps::{Creep, HasPosition, LookResult, ObjectId, RawObjectId, StructureContainer, HasStore};
+use screeps::{HasPosition, LookResult, ObjectId, HasStore};
 
 use crate::filters;
 use crate::jobs::JobProperties;
 use crate::rtb::{JobAsk, JobBid, SinkNode, SourceNode};
-
-/// Given a Linked List, Q, iterate through Q to find the highest ratio by comparing each ratio within the queue.
-/// Once a ratio of element N is greater than the element M with the highest ratio, replace element M with element N
-/// as the highest ratio element in the list. Once the end of the list is reached, dequeue the highest ratio element.
-/// If the element is at the start of the list, dequeue it and set the list to its next element, returning the element.
-/// Otherwise N's neighbors are reassigned to identify each other as their next and previous neighbor, returning the
-/// result of N.
-// pub fn hrrn(mut pq: ContextList) -> Option<Context> {
-//     let highest_prio = pq.queue.pop();
-
-//     match highest_prio {
-//         Some((context, _)) => Some(context),
-//         None => {},
-//     }
-// }
 
 pub fn load_asks_from_memory() -> Option<Vec<JobAsk>> {
     None
@@ -27,6 +11,7 @@ pub fn load_bids_from_memory() -> Option<Vec<JobBid>> {
     None
 }
 
+#[inline]
 pub fn load_contexts() {
     let mut creeps = screeps::game::creeps::values();
 
@@ -39,14 +24,6 @@ pub fn load_contexts() {
         Some(bids) => bids,
         None => vec![],
     };
-
-    // let ask_list = priority_queue::PriorityQueue::<JobAsk, i32>::from_iter(
-    //     ask_vec.iter().map(|job| (*job, job.ask as i32))
-    // );
-
-    // let bid_list = priority_queue::PriorityQueue::<JobBid, i32>::from_iter(
-    //     bid_vec.iter().map(|job| (*job, job.bid as i32))
-    // );
 
     filters::get_my_rooms()
         .iter()
