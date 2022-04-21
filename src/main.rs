@@ -2,17 +2,21 @@ use std::collections::HashSet;
 
 use contexts::ContextList;
 use log::*;
-use screeps::prelude::*;
+use screeps::{prelude::*, RoomPosition};
 use stdweb::js;
 
-mod logging;
 mod contexts;
-mod schedulers;
-mod jobs;
-mod orders;
 mod filters;
+mod jobs;
+mod logging;
+mod orders;
+mod schedulers;
 // mod travel;
+mod flags;
 mod util;
+mod spawns;
+mod rtb;
+mod world;
 
 fn main() {
     logging::setup_logging(logging::Info);
@@ -42,14 +46,6 @@ fn main() {
 fn game_loop() {
 
     let context_list = ContextList::new();
-
-
-
-
-
-
-
-
 
     let time = screeps::game::time();
 

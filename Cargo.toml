@@ -10,8 +10,9 @@ log = "0.4"
 fern = "0.6"
 screeps-game-api = "0.9"
 priority-queue = "1.2.1"
+itertools = "0.10.3"
 
 [profile.release]
 panic = "abort"
 opt-level = "s"
-lto = true
+lto = "fat"
