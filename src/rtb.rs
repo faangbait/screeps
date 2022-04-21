@@ -1,9 +1,41 @@
-use itertools::{zip, Itertools, izip};
-use screeps::{RoomObjectProperties, LookResult, RawObjectId, ResourceType, HasId, Attackable, HasStore, SharedCreepProperties, HasPosition};
+use std::convert::TryInto;
+
+use priority_queue::PriorityQueue;
+use screeps::{RoomObjectProperties, LookResult, RawObjectId, ResourceType, HasId, Attackable, HasStore, SharedCreepProperties, HasPosition, RoomObject};
 
 use crate::jobs::JobType;
 use crate::util::RoomCustomActions;
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum SinkSources {
+    Creep,
+    Energy,
+    Resource,
+    Source,
+    Mineral,
+    Deposit,
+    ConstructionSite,
+    Tombstone,
+    PowerCreep,
+    Structure,
+    Controller,
+    Container,
+    Extension,
+    Extractor,
+    Factory,
+    Lab,
+    Link,
+    Nuker,
+    Observer,
+    PowerSpawn,
+    Rampart,
+    Road,
+    Spawn,
+    Storage,
+    Terminal,
+    Tower,
+    Wall
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct JobBid {
@@ -11,9 +43,9 @@ pub struct JobBid {
     pub resource: Option<screeps::ResourceType>,
     pub max: u32, // the max quantity of resources that can be spent here
     pub bid: u32, // the amount the job pays per resource [or tick, if resource is none]; basic repairs are 10
-    pub target: RawObjectId
+    pub target: RawObjectId,
+    pub ty: SinkSources,
 }
-
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct JobAsk {
@@ -21,15 +53,16 @@ pub struct JobAsk {
     pub resource: Option<screeps::ResourceType>,
     pub max: u32,
     pub ask: u32,
-    pub target: RawObjectId
+    pub target: RawObjectId,
+    pub ty: SinkSources,
 }
 
-pub trait Sink {
+pub trait SinkNode {
     fn bid(self: &Self) -> u32;
     fn sink_request(self: &Self) -> Option<JobBid>;
 }
 
-impl Sink for screeps::Creep {
+impl SinkNode for screeps::Creep {
     fn bid(self: &Self) -> u32 {
         let mem = self.memory().i32("workValue");
         match mem {
@@ -48,7 +81,8 @@ impl Sink for screeps::Creep {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 0, // TODO: Body cost
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Creep
             })
         } else {
             Some(JobBid {
@@ -57,11 +91,12 @@ impl Sink for screeps::Creep {
                 max: self.store_free_capacity(Some(ResourceType::Energy)) as u32,
                 bid: self.bid(),
                 target: self.untyped_id(),
+                ty: SinkSources::Creep
             })
         }
     }
 }
-impl Sink for screeps::StructureRoad {
+impl SinkNode for screeps::StructureRoad {
     fn bid(self: &Self) -> u32 { 0 }
 
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -71,12 +106,13 @@ impl Sink for screeps::StructureRoad {
                 resource: Some(ResourceType::Energy),
                 max: (self.hits_max() - self.hits()) / 100,
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Road
             })
         } else { None }
     }
 }
-impl Sink for screeps::StructureWall {
+impl SinkNode for screeps::StructureWall {
     fn bid(self: &Self) -> u32 { 0 }
 
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -86,12 +122,13 @@ impl Sink for screeps::StructureWall {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10 * 1.max(self.room().unwrap().count_baddies_here()),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Wall
             })
         } else { None }
     }
 }
-impl Sink for screeps::StructureRampart {
+impl SinkNode for screeps::StructureRampart {
     fn bid(self: &Self) -> u32 {
         self.room().unwrap().count_baddies_here() * 100
     }
@@ -103,7 +140,8 @@ impl Sink for screeps::StructureRampart {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10 * 1.max(self.room().unwrap().count_baddies_here()),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Rampart
             })
         } else if self.room().unwrap().count_baddies_here() > 0 {
             if self.pos().find_in_range(screeps::find::MY_CREEPS, 0).len() > 0 {
@@ -113,7 +151,8 @@ impl Sink for screeps::StructureRampart {
                     resource: None,
                     max: self.room().unwrap().count_baddies_here(),
                     bid: self.bid(),
-                    target: self.untyped_id()
+                    target: self.untyped_id(),
+                    ty: SinkSources::Rampart
                 })
             } else {
                 // no creep stationed here; let's get someone here
@@ -122,14 +161,15 @@ impl Sink for screeps::StructureRampart {
                     resource: None,
                     max: self.room().unwrap().count_baddies_here(),
                     bid: self.bid() * 2,
-                    target: self.untyped_id()
+                    target: self.untyped_id(),
+                    ty: SinkSources::Rampart
                 })
             }
         } else { None }
     }
 }
 
-impl Sink for screeps::StructureController {
+impl SinkNode for screeps::StructureController {
     fn bid(self: &Self) -> u32 {
         // https://www.wolframalpha.com/input?i=plot+.025+*+%28%28.2%28x%5E2%29%29+-+%28log%283.14159%2C+45000%29x%29+-+%283.14159*x%29+%2B+400%29+from+x%3D0+to+100
         // scales from ~10 to ~40
@@ -166,7 +206,8 @@ impl Sink for screeps::StructureController {
                 resource: Some(ResourceType::Energy),
                 max: self.progress_total().unwrap_or(0) - self.progress().unwrap_or(0),
                 bid: self.bid(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Controller
             })
             
             // TODO
@@ -181,7 +222,7 @@ impl Sink for screeps::StructureController {
     }
 }
 
-impl Sink for screeps::StructureLink {
+impl SinkNode for screeps::StructureLink {
     fn bid(self: &Self) -> u32 { 20 }  // TODO
 
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -191,7 +232,8 @@ impl Sink for screeps::StructureLink {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Link
             })
         } else if self.energy() < self.store_capacity(Some(ResourceType::Energy)) {
             Some(JobBid {
@@ -199,13 +241,14 @@ impl Sink for screeps::StructureLink {
                 resource: Some(ResourceType::Energy),
                 max: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
                 bid: self.bid(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Link
             })
         } else { None }
     }
 }
 
-impl Sink for screeps::StructureObserver {
+impl SinkNode for screeps::StructureObserver {
 
     fn bid(self: &Self) -> u32 { 0 }
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -215,14 +258,15 @@ impl Sink for screeps::StructureObserver {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Observer
             })
         } else { None }
     }
 
 }
 
-impl Sink for screeps::StructureLab {
+impl SinkNode for screeps::StructureLab {
 
     fn bid(self: &Self) -> u32 { 0 }
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -232,13 +276,14 @@ impl Sink for screeps::StructureLab {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Lab
             })
         } else { None }
     }
 }
 
-impl Sink for screeps::StructureStorage {
+impl SinkNode for screeps::StructureStorage {
     fn bid(self: &Self) -> u32 { 5 } // TODO
     fn sink_request(self: &Self) -> Option<JobBid> {
         if self.hits() < self.hits_max() - 100 {
@@ -247,7 +292,8 @@ impl Sink for screeps::StructureStorage {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Storage
             })
         } else if self.energy() < self.store_capacity(Some(ResourceType::Energy)) {
             Some(JobBid {
@@ -255,12 +301,13 @@ impl Sink for screeps::StructureStorage {
                 resource: Some(ResourceType::Energy),
                 max: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
                 bid: self.bid(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Storage
             })
         } else { None }
     }
 }
-impl Sink for screeps::StructureTower {
+impl SinkNode for screeps::StructureTower {
     fn bid(self: &Self) -> u32 { 3 } // TODO
     fn sink_request(self: &Self) -> Option<JobBid> {
         if self.hits() < self.hits_max() - 100 {
@@ -269,7 +316,8 @@ impl Sink for screeps::StructureTower {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Tower
             })
         } else if self.energy() < self.store_capacity(Some(ResourceType::Energy)) {
             Some(JobBid {
@@ -277,12 +325,13 @@ impl Sink for screeps::StructureTower {
                 resource: Some(ResourceType::Energy),
                 max: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
                 bid: self.bid(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Tower
             })
         } else { None }
     }
 }
-impl Sink for screeps::StructurePowerSpawn {
+impl SinkNode for screeps::StructurePowerSpawn {
     fn bid(self: &Self) -> u32 { 10 } // TODO
     fn sink_request(self: &Self) -> Option<JobBid> {
 
@@ -292,7 +341,8 @@ impl Sink for screeps::StructurePowerSpawn {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::PowerSpawn
             })
         } else if self.energy() < self.store_capacity(Some(ResourceType::Energy)) {
             Some(JobBid {
@@ -300,13 +350,14 @@ impl Sink for screeps::StructurePowerSpawn {
                 resource: Some(ResourceType::Energy),
                 max: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
                 bid: self.bid(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::PowerSpawn
             })
         } else { None }
     }
 }
 
-impl Sink for screeps::StructureSpawn {
+impl SinkNode for screeps::StructureSpawn {
 
     fn bid(self: &Self) -> u32 { 6 } // TODO
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -316,7 +367,8 @@ impl Sink for screeps::StructureSpawn {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Spawn
             })
         } else if self.energy() < self.store_capacity(Some(ResourceType::Energy)) {
             Some(JobBid {
@@ -324,13 +376,14 @@ impl Sink for screeps::StructureSpawn {
                 resource: Some(ResourceType::Energy),
                 max: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
                 bid: self.bid(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Spawn
             })
         } else { None }
     }
 }
 
-impl Sink for screeps::StructureExtractor {
+impl SinkNode for screeps::StructureExtractor {
 
     fn bid(self: &Self) -> u32 { 0 }
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -340,12 +393,13 @@ impl Sink for screeps::StructureExtractor {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Extractor
             })
         } else { None }
     }
 }
-impl Sink for screeps::StructureExtension {
+impl SinkNode for screeps::StructureExtension {
 
     fn bid(self: &Self) -> u32 {
         match self.pos().find_closest_by_range(screeps::find::MY_SPAWNS) {
@@ -360,7 +414,8 @@ impl Sink for screeps::StructureExtension {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Extension
             })
         } else if self.energy() < self.store_capacity(Some(ResourceType::Energy)) {
             Some(JobBid {
@@ -368,13 +423,14 @@ impl Sink for screeps::StructureExtension {
                 resource: Some(ResourceType::Energy),
                 max: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
                 bid: self.bid(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Extension
             })
         } else { None }
     }
 
 }
-impl Sink for screeps::StructureTerminal {
+impl SinkNode for screeps::StructureTerminal {
 
     fn bid(self: &Self) -> u32 { 0 }
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -384,12 +440,13 @@ impl Sink for screeps::StructureTerminal {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Terminal
             })
         } else { None }
     }
 }
-impl Sink for screeps::StructureContainer {
+impl SinkNode for screeps::StructureContainer {
     fn bid(self: &Self) -> u32 { 5 } // TODO
 
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -399,7 +456,8 @@ impl Sink for screeps::StructureContainer {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Container
             })
         } else if self.energy() < self.store_capacity(Some(ResourceType::Energy)) {
             Some(JobBid {
@@ -407,13 +465,14 @@ impl Sink for screeps::StructureContainer {
                 resource: Some(ResourceType::Energy),
                 max: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
                 bid: self.bid(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Container
             })
         } else { None }
     }
 
 }
-impl Sink for screeps::StructureNuker {
+impl SinkNode for screeps::StructureNuker {
 
     fn bid(self: &Self) -> u32 { 0 }
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -423,12 +482,13 @@ impl Sink for screeps::StructureNuker {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Nuker
             })
         } else { None }
     }
 }
-impl Sink for screeps::StructureFactory {
+impl SinkNode for screeps::StructureFactory {
     fn bid(self: &Self) -> u32 { 0 }
 
     fn sink_request(self: &Self) -> Option<JobBid> {
@@ -438,12 +498,13 @@ impl Sink for screeps::StructureFactory {
                 resource: Some(ResourceType::Energy),
                 max: self.hits_max() - self.hits(),
                 bid: 10,
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Factory
             })
         } else { None }
     }
 }
-impl Sink for screeps::ConstructionSite {
+impl SinkNode for screeps::ConstructionSite {
     fn bid(self: &Self) -> u32 {
         let mult = (self.progress_total() as f32 / (self.progress_total() as f32 / (self.progress() as f32 + 1.0))) / 12.0;
         
@@ -493,7 +554,8 @@ impl Sink for screeps::ConstructionSite {
             resource: Some(ResourceType::Energy),
             max: self.progress_total() - self.progress(),
             bid: self.bid(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::ConstructionSite
         })
     }
 
@@ -504,13 +566,13 @@ impl Sink for screeps::ConstructionSite {
 //     }
 // }
 
-pub trait Source {
+pub trait SourceNode {
     fn ask(self: &Self) -> u32;
     fn source_request(self: &Self) -> Option<JobAsk>;
 
 }
 
-impl Source for screeps::Creep {
+impl SourceNode for screeps::Creep {
     fn ask(self: &Self) -> u32 {
         let mem = self.memory().i32("workValue");
         match mem {
@@ -527,11 +589,12 @@ impl Source for screeps::Creep {
             resource: Some(ResourceType::Energy), // todo
             max: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Creep
         })  
     }
 }
-impl Source for screeps::Source {
+impl SourceNode for screeps::Source {
     fn ask(self: &Self) -> u32 { 1 } // sources have minimal cost
     fn source_request(self: &Self) -> Option<JobAsk> {
         //TODO "first harvest" to start ticks to regen
@@ -540,11 +603,12 @@ impl Source for screeps::Source {
             resource: Some(ResourceType::Energy),
             max: self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Source
         })
     }
 }
-impl Source for screeps::Deposit {
+impl SourceNode for screeps::Deposit {
     fn ask(self: &Self) -> u32 { 1 } // sources have minimal cost
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -553,11 +617,12 @@ impl Source for screeps::Deposit {
             resource: Some(self.deposit_type()),
             max: if self.last_cooldown() > 0 { 400 / self.last_cooldown() } else { 400 },
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Deposit
         })
     }
 }
-impl Source for screeps::Resource {
+impl SourceNode for screeps::Resource {
     fn ask(self: &Self) -> u32 { 1 } // sources have minimal cost
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -566,12 +631,13 @@ impl Source for screeps::Resource {
             resource: Some(self.resource_type()),
             max: self.amount(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Resource
         })
     }
 
 }
-impl Source for screeps::Mineral {
+impl SourceNode for screeps::Mineral {
     fn ask(self: &Self) -> u32 { 1 } // sources have minimal cost
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -580,11 +646,12 @@ impl Source for screeps::Mineral {
             resource: Some(self.mineral_type()),
             max: self.mineral_amount(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Mineral
         })
     }
 }
-impl Source for screeps::Tombstone {
+impl SourceNode for screeps::Tombstone {
     fn ask(self: &Self) -> u32 { 1 } // sources have minimal cost
     fn source_request(self: &Self) -> Option<JobAsk> {
 
@@ -598,7 +665,8 @@ impl Source for screeps::Tombstone {
                 resource: Some(biggest.unwrap().0),
                 max: biggest.unwrap().1,
                 ask: self.ask(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Tombstone
             })            
         } else { None }
     }
@@ -611,7 +679,7 @@ impl Source for screeps::Tombstone {
         
 //     }
 // }
-impl Source for screeps::StructureSpawn {
+impl SourceNode for screeps::StructureSpawn {
     fn ask(self: &Self) -> u32 { self.bid() + 5 }
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -620,12 +688,13 @@ impl Source for screeps::StructureSpawn {
             resource: Some(ResourceType::Energy),
             max: self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Spawn
         })
     }
 }
 
-impl Source for screeps::StructureExtension {
+impl SourceNode for screeps::StructureExtension {
     fn ask(self: &Self) -> u32 { self.bid() + 5 }
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -634,11 +703,12 @@ impl Source for screeps::StructureExtension {
             resource: Some(ResourceType::Energy),
             max: self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Extension
         })
     }
 }
-impl Source for screeps::StructureLink {
+impl SourceNode for screeps::StructureLink {
     fn ask(self: &Self) -> u32 { self.bid() + 5 }
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -647,12 +717,13 @@ impl Source for screeps::StructureLink {
             resource: Some(ResourceType::Energy),
             max: self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Link
         })
     }
 }
 
-impl Source for screeps::StructureStorage {
+impl SourceNode for screeps::StructureStorage {
     fn ask(self: &Self) -> u32 { self.bid() + 1 }
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -661,11 +732,12 @@ impl Source for screeps::StructureStorage {
             resource: Some(ResourceType::Energy),
             max: self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Storage
         })
     }
 }
-impl Source for screeps::StructureTower {
+impl SourceNode for screeps::StructureTower {
     fn ask(self: &Self) -> u32 { self.bid() + 1 }
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -674,11 +746,12 @@ impl Source for screeps::StructureTower {
             resource: Some(ResourceType::Energy),
             max: self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Tower
         })
     }
 }
-impl Source for screeps::StructurePowerSpawn {
+impl SourceNode for screeps::StructurePowerSpawn {
     fn ask(self: &Self) -> u32 { self.bid() + 5 }
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -687,11 +760,12 @@ impl Source for screeps::StructurePowerSpawn {
             resource: Some(ResourceType::Energy),
             max: self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Spawn
         })
     }
 }
-impl Source for screeps::StructureTerminal {
+impl SourceNode for screeps::StructureTerminal {
     fn ask(self: &Self) -> u32 { self.bid() + 1 }
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -700,11 +774,12 @@ impl Source for screeps::StructureTerminal {
             resource: Some(ResourceType::Energy),
             max: self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Terminal
         })
     }
 }
-impl Source for screeps::StructureContainer {
+impl SourceNode for screeps::StructureContainer {
     fn ask(self: &Self) -> u32 { self.bid() + 1 }
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -714,12 +789,13 @@ impl Source for screeps::StructureContainer {
                 resource: Some(ResourceType::Energy),
                 max: self.store_free_capacity(Some(ResourceType::Energy)) as u32,
                 ask: self.ask(),
-                target: self.untyped_id()
+                target: self.untyped_id(),
+                ty: SinkSources::Container
             })
         } else { None }
     }
 }
-impl Source for screeps::StructureNuker {
+impl SourceNode for screeps::StructureNuker {
     fn ask(self: &Self) -> u32 { self.bid() + 5 }
 
     fn source_request(self: &Self) -> Option<JobAsk> {
@@ -728,8 +804,73 @@ impl Source for screeps::StructureNuker {
             resource: Some(ResourceType::Energy),
             max: self.energy(),
             ask: self.ask(),
-            target: self.untyped_id()
+            target: self.untyped_id(),
+            ty: SinkSources::Nuker
         })
     }
 }
+impl SourceNode for screeps::StructureFactory {
+    fn ask(self: &Self) -> u32 { self.bid() + 1 }
 
+    fn source_request(self: &Self) -> Option<JobAsk> {
+        let biggest = self.store_types().iter()
+        .map(|&rt| (rt, self.store_used_capacity(Some(rt))))
+        .max_by_key(|(_rt,quant)| *quant);
+
+        if biggest.is_some() {
+            Some(JobAsk {
+                request: JobType::Withdraw,
+                resource: Some(biggest.unwrap().0),
+                max: biggest.unwrap().1,
+                ask: self.ask(),
+                target: self.untyped_id(),
+                ty: SinkSources::Factory
+            })            
+        } else { None }
+    }
+}
+
+impl SourceNode for screeps::StructureLab {
+    fn ask(self: &Self) -> u32 { self.bid() + 1 }
+
+    fn source_request(self: &Self) -> Option<JobAsk> {
+        let biggest = self.store_types().iter()
+        .map(|&rt| (rt, self.store_used_capacity(Some(rt))))
+        .max_by_key(|(_rt,quant)| *quant);
+
+        if biggest.is_some() {
+            Some(JobAsk {
+                request: JobType::Withdraw,
+                resource: Some(biggest.unwrap().0),
+                max: biggest.unwrap().1,
+                ask: self.ask(),
+                target: self.untyped_id(),
+                ty: SinkSources::Lab
+            })            
+        } else { None }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct BidList {
+    pub queue: PriorityQueue<JobBid, i32>,
+}
+
+impl BidList {
+    pub fn new() -> Self { Self { queue: PriorityQueue::<JobBid, i32>::new() } }
+    pub fn add(mut self: Self, job: JobBid) -> Option<i32> {
+        self.queue.push( job, job.bid.try_into().unwrap_or(0))
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct AskList {
+    pub queue: PriorityQueue<JobAsk, i32>,
+}
+
+impl AskList {
+    pub fn new() -> Self { Self { queue: PriorityQueue::<JobAsk, i32>::new() } }
+    pub fn add(mut self: Self, job: JobAsk) -> Option<i32> {
+        self.queue.push( job, (job.ask as i32).checked_mul(-1).unwrap_or(-1000000))
+    }
+}

@@ -422,37 +422,37 @@ impl WorkRequest for screeps::StructureNuker {
     }
 }
 
-impl WorkRequest for screeps::Creep {
-    fn work_request(self: &Self) -> Option<JobOrder> {
-        if self.hits() < self.hits_max() {
-            Some(JobOrder {
-                request: JobType::Heal,
-                resource: Some(ResourceType::Energy),
-                work_required: self.hits_max() - self.hits(),
-                priority: (self.hits_max() -  self.hits()) as i32,
-                target: self.untyped_id()
-            })
-        } else if self.resource_sink().is_some() {
-            Some(JobOrder {
-                request: JobType::Transfer,
-                resource: self.resource_sink(),
-                work_required: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
-                priority: (self.store_capacity(Some(ResourceType::Energy)) - self.energy()) as i32,
-                target: self.untyped_id()
-            })
-        } else if self.resource_source().is_some() {
-            Some(JobOrder {
-                request: JobType::Pickup, // TODO: Will this break?
-                resource: self.resource_sink(),
-                work_required: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
-                priority: (self.store_capacity(Some(ResourceType::Energy)) - self.energy()) as i32,
-                target: self.untyped_id()
-            })  
-        }
+// impl WorkRequest for screeps::Creep {
+//     fn work_request(self: &Self) -> Option<JobOrder> {
+//         if self.hits() < self.hits_max() {
+//             Some(JobOrder {
+//                 request: JobType::Heal,
+//                 resource: Some(ResourceType::Energy),
+//                 work_required: self.hits_max() - self.hits(),
+//                 priority: (self.hits_max() -  self.hits()) as i32,
+//                 target: self.untyped_id()
+//             })
+//         } else if self.resource_sink().is_some() {
+//             Some(JobOrder {
+//                 request: JobType::Transfer,
+//                 resource: self.resource_sink(),
+//                 work_required: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
+//                 priority: (self.store_capacity(Some(ResourceType::Energy)) - self.energy()) as i32,
+//                 target: self.untyped_id()
+//             })
+//         } else if self.resource_source().is_some() {
+//             Some(JobOrder {
+//                 request: JobType::Pickup, // TODO: Will this break?
+//                 resource: self.resource_sink(),
+//                 work_required: self.store_capacity(Some(ResourceType::Energy)) - self.energy(),
+//                 priority: (self.store_capacity(Some(ResourceType::Energy)) - self.energy()) as i32,
+//                 target: self.untyped_id()
+//             })  
+//         }
         
-        else { None }
-    }
-}
+//         else { None }
+//     }
+// }
 
 //     StructureType::PowerBank => todo!(),
 //     StructureType::KeeperLair => todo!(),
