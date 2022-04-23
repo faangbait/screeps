@@ -15,9 +15,11 @@ mod util;
 mod spawns;
 mod rtb;
 mod world;
+mod mem;
 
 fn main() {
     logging::setup_logging(logging::Info);
+
 
     js! {
         var game_loop = @{game_loop};
@@ -41,18 +43,18 @@ fn main() {
     }
 }
 
+
 fn game_loop() {
 
     let context_list = ContextMap::new();
-
     let time = screeps::game::time();
-
+    util::calc();
     if time % 32 == 3 {
         info!("running memory cleanup");
         cleanup_memory().expect("expected Memory.creeps format to be a regular memory object");
     }
 
-    debug!("done! cpu: {}", screeps::game::cpu::get_used())
+    info!("done! cpu: {}", screeps::game::cpu::get_used())
 }
 
 fn cleanup_memory() -> Result<(), Box<dyn std::error::Error>> {
