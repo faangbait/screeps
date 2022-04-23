@@ -1,10 +1,14 @@
 
 
+use contexts::ContextMap;
 use log::*;
 
 use screeps::prelude::*;
 use stdweb::js;
 
+mod contexts;
+mod filters;
+mod jobs;
 mod logging;
 mod flow;
 mod spawning;
@@ -20,6 +24,7 @@ fn main() {
             creep.memory().set("role", creep.name().split_terminator('-').collect::<Vec<&str>>()[0]);
         }
     }
+
 
 
     js! {

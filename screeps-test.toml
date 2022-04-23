@@ -1,0 +1,9 @@
+default_deploy_mode = "upload"
+
+[upload]
+hostname = "localhost"
+username = ""
+password = ""
+ssl = false
+port = 21025
+branch = "default"
