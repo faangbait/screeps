@@ -1,3 +1,5 @@
+use log::info;
+use screeps::SharedCreepProperties;
 use stdweb::js;
 
 mod logging;
@@ -7,10 +9,14 @@ mod creeps;
 mod spawns;
 mod structures;
 mod constructionsites;
-mod resources;
 mod flags;
 mod world;
-
+mod sink;
+mod source;
+mod logic;
+mod basic_enums;
+mod filters;
+mod jobs;
 
 fn main() {
     logging::setup_logging(logging::Info);
@@ -39,16 +45,21 @@ fn main() {
 
 fn game_loop() {
     let (
-        rooms,
-        creeps,
-        spawns,
-        structures,
-        constructionsites,
-        resources,
-        flags
+        mut rooms,
+        mut creeps,
+        mut spawns,
+        mut structures,
+        mut constructionsites,
+        mut resources,
+        mut flags,
+        mut sources,
+        mut controllers,
     ) = entry::init();
 
+    creeps.sort_unstable_by_key(|c| c.body().len());
 
+    logic::prioritize(creeps, structures, constructionsites, resources, sources);
+    
     entry::endstep();
 }
 

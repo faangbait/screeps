@@ -180,7 +180,7 @@ pub fn get_my_terminals() -> Vec<screeps::StructureTerminal> {
     }).collect()
 }
 
-pub fn get_groundscores() -> Vec<screeps::Resource> {
+pub fn get_groundscores() -> Vec<screeps::objects::Resource> {
     get_my_rooms()
         .iter()
         .flat_map(|room| room.look_for_at_area(screeps::look::RESOURCES, 0..50, 0..50))
