@@ -53,6 +53,8 @@ pub fn get_my_spawns() -> Vec<screeps::StructureSpawn> {
 //     todo!();
 // }
 
+use screeps::SharedCreepProperties;
+
 
 pub fn get_my_containers() -> Vec<screeps::StructureContainer> {
     get_my_rooms()
@@ -97,8 +99,8 @@ pub fn get_my_repairables() -> Vec<screeps::Structure> {
     get_my_rooms()
     .iter()
     .flat_map(|room| room.find(screeps::find::STRUCTURES))
-    .filter(|s| s.as_can_decay().map(|st| st.ticks_to_decay() > 0).unwrap_or(false))
-    .filter(|s| s.as_attackable().map(|st| st.hits_max() > st.hits() + 50).unwrap_or(true))
+    .filter(|s| s.as_can_decay().is_some())
+    .filter(|s| s.as_attackable().map(|st| st.hits_max() > st.hits() + 1000).unwrap_or_else(||true))
     .collect()
 
 }
@@ -180,7 +182,7 @@ pub fn get_my_terminals() -> Vec<screeps::StructureTerminal> {
     }).collect()
 }
 
-pub fn get_groundscores() -> Vec<screeps::Resource> {
+pub fn get_groundscores() -> Vec<screeps::objects::Resource> {
     get_my_rooms()
         .iter()
         .flat_map(|room| room.look_for_at_area(screeps::look::RESOURCES, 0..50, 0..50))
@@ -216,4 +218,12 @@ pub fn get_my_ramparts() -> Vec<screeps::StructureRampart> {
         screeps::Structure::Rampart(st) => Some(st),
         _ => None,
     }).collect()
+}
+
+pub(crate) fn get_my_creeps() -> Vec<screeps::Creep> {
+    screeps::game::creeps::values()
+    .iter()
+    .filter(|&c| c.my() && !c.spawning())
+    .map(|c| c.to_owned())
+    .collect()
 }
