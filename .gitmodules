@@ -1,0 +1,3 @@
+[submodule "screeps-game-api"]
+	path = screeps-game-api
+	url = https://github.com/faangbait/screeps-game-api

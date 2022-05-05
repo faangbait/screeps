@@ -1,31 +1,33 @@
-
-
-use contexts::ContextMap;
-use log::*;
-
-use screeps::prelude::*;
+use jobs::JobProperties;
+use log::info;
+use screeps::{game, HasPosition, Position, SharedCreepProperties};
 use stdweb::js;
 
-mod contexts;
+mod constructionsites;
+mod creeps;
+mod entry;
 mod filters;
+mod flags;
 mod jobs;
 mod logging;
-mod flow;
+mod relogic;
+mod rooms;
+mod sink;
+mod source;
 mod spawning;
-mod pathing;
-mod architect; 
-mod towers;
-mod combat;
+mod structures;
+mod world;
 
 fn main() {
     logging::setup_logging(logging::Info);
     for creep in screeps::game::creeps::values() {
         if creep.memory().get::<String>("role").unwrap().is_none() {
-            creep.memory().set("role", creep.name().split_terminator('-').collect::<Vec<&str>>()[0]);
+            creep.memory().set(
+                "role",
+                creep.name().split_terminator('-').collect::<Vec<&str>>()[0],
+            );
         }
     }
-
-
 
     js! {
         var game_loop = @{game_loop};
@@ -50,17 +52,34 @@ fn main() {
 }
 
 fn game_loop() {
-    debug!("loop starting! CPU: {}", screeps::game::cpu::get_used());
+    // info!("Starting loop...");
+    let (rooms, creeps, spawns, structures, constructionsites, resources, flags, sources) =
+        entry::init();
 
-    flow::start_loop();
-    if screeps::game::time() % 30 == 3 { spawning::manage_spawns(); }
-    
-    towers::tower_action();
-    flow::prioritize_actions();
-    
-    flow::manage_memory();
-    flow::end_loop();
+    // creeps.iter().filter(|&c| {
+    //     match c.ticks_to_live() {
+    //         Ok(o) => o % 10 == 0,
+    //         Err(_) => false,
+    //     }
+    // }).for_each(|c| {
+    //     let room = c.memory().path_string("_move.dest.room").unwrap_or(None);
+    //     let x = c.memory().path_i32("_move.dest.x").unwrap_or(None);
+    //     let y = c.memory().path_i32("_move.dest.y").unwrap_or(None);
 
-    info!("done! cpu: {}", screeps::game::cpu::get_used())
+    //     // if let Some(room_name) = room {
+    //     //     if let Some(x) = x {
+    //     //         if let Some(y) = y {
+    //     //             let position = Position::new(x as u32,y as u32,screeps::RoomName::new(&room_name).unwrap());
+    //     //             let search = c.astar(&position).search_results.unwrap();
+    //     //             c.memory().path_set("_move.astar.path", search.opaque_path());
+    //     //             c.memory().path_set("_move.astar.cost", search.cost);
+    //     //         }
+    //     //     }
+    //     // }
+
+    // });
+    // logic::prioritize(creeps, sources, structures, constructionsites, resources);
+    relogic::prioritize(creeps.to_vec());
+
+    entry::endstep();
 }
-
