@@ -1,47 +1,29 @@
 use std::collections::HashSet;
 
 use log::{info, debug, warn};
-use screeps::game::cpu::HeapStatistics;
 
-pub struct Usage {
-    limit: u32,
-    tick_limit: u32,
-    bucket: u32,
-    heap: HeapStatistics
-}
 
-impl Usage {
-    pub fn new() -> Self { Self {
-        limit: screeps::game::cpu::limit(),
-        tick_limit: screeps::game::cpu::tick_limit(),
-        bucket: screeps::game::cpu::bucket(),
-        heap: screeps::game::cpu::get_heap_statistics()
-    } }
-}
+use crate::filters;
 
-pub fn show_usage(cpu: &Usage) {
-    info!("| {:.2}/{:?}({:?}) | {:?} | {:?} ", screeps::game::cpu::get_used(), cpu.tick_limit, cpu.bucket, cpu.heap.peak_malloced_memory, screeps::game::time());
-}
 pub fn init() -> (
     Vec<screeps::Room>,
     Vec<screeps::Creep>,
     Vec<screeps::StructureSpawn>,
     Vec<screeps::Structure>,
     Vec<screeps::ConstructionSite>,
-    Vec<screeps::IntershardResourceType>,
+    Vec<screeps::objects::Resource>,
     Vec<screeps::Flag>,
+    Vec<screeps::Source>,
 ){
-    let cpu = Usage::new();
-    show_usage(&cpu);
-
     return (
         screeps::game::rooms::values(),
-        screeps::game::creeps::values(),
+        filters::get_my_creeps(),
         screeps::game::spawns::values(),
-        screeps::game::structures::values(),
+        filters::get_my_structures(),
         screeps::game::construction_sites::values(),
-        screeps::game::resources::keys(),
+        filters::get_groundscores(),
         screeps::game::flags::values(),
+        filters::get_my_sources(),
     )
     // screeps::game::gcl::level()
     // screeps::game::gpl::level()
