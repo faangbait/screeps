@@ -5,7 +5,7 @@ use screeps::{
 };
 
 use crate::jobs::{JobProperties, JobType};
-use crate::{filters, flags, spawning};
+use crate::{bucket, filters, flags, spawning};
 
 // pub fn select_upgraders(mut creeps: Vec<Creep>) -> Vec<Creep> {
 //     creeps.retain(|c| {
@@ -224,7 +224,7 @@ pub fn get_gather_jobs(mut creeps: Vec<Creep>) -> Vec<Context> {
                 job: JobType::Pickup,
                 target: g.pos(),
             }]
-            .repeat((g.amount() / 100) as usize)
+            .repeat((g.amount() / 100).max(1) as usize)
         })
         .collect::<Vec<Context>>();
 
@@ -613,6 +613,7 @@ pub fn assign_harvesters(mut creeps: Vec<screeps::Creep>) -> Vec<screeps::Creep>
 
     assigned_harvesters
 }
+
 pub fn prioritize(mut creeps: Vec<screeps::Creep>) {
     let total = creeps.len();
 
@@ -940,7 +941,7 @@ pub fn prioritize(mut creeps: Vec<screeps::Creep>) {
             }
         });
 
-    if width > height || total < 6 {
+    if (width > height || total < 6) && total < 30 {
         if screeps::game::time() % 15 == 1 {
             spawning::init(
                 creeps.to_vec(),

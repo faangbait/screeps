@@ -3,6 +3,7 @@ use log::info;
 use screeps::{game, HasPosition, Position, SharedCreepProperties};
 use stdweb::js;
 
+mod bucket;
 mod constructionsites;
 mod creeps;
 mod entry;
@@ -80,6 +81,7 @@ fn game_loop() {
     // });
     // logic::prioritize(creeps, sources, structures, constructionsites, resources);
     relogic::prioritize(creeps.to_vec());
+    // bucket::bucket_sort(creeps.to_vec());
 
     entry::endstep();
 }

@@ -32,6 +32,7 @@ pub enum JobType {
 pub trait JobProperties {
     fn count_bp_vec(self: &Self, part_array: Vec<screeps::Part>) -> Vec<u32>;
     fn has_parts_for_job(&self, job_type: JobType) -> bool;
+    fn contribution_per_tick(&self, job_type: JobType) -> u32;
     fn job_runtime(&self, target: &dyn HasId, job_type: JobType) -> (u32, u32, u32);
 
     fn distance_to(&self, pos: &screeps::Position) -> u32;
@@ -76,10 +77,8 @@ impl JobProperties for screeps::Creep {
             .all(|req| self.get_active_bodyparts(*req) > 0)
     }
 
-    fn job_runtime(&self, target: &dyn HasId, job_type: JobType) -> (u32, u32, u32) {
-        let start_ticks = self.astar(&target.pos()).arrive_ticks;
-
-        let contribution_per_tick = match job_type {
+    fn contribution_per_tick(&self, job_type: JobType) -> u32 {
+        match job_type {
             JobType::Harvest => self.get_active_bodyparts(Part::Work) * 2,
             JobType::Build => self.get_active_bodyparts(Part::Work) * 5,
             JobType::Repair => self.get_active_bodyparts(Part::Work) * 100,
@@ -96,7 +95,14 @@ impl JobProperties for screeps::Creep {
             JobType::DefendR => self.get_active_bodyparts(Part::RangedAttack) * 10,
             JobType::Heal => self.get_active_bodyparts(Part::Heal) * 12,
             JobType::Scout => 1,
-        };
+        }
+    }
+
+    fn job_runtime(&self, target: &dyn HasId, job_type: JobType) -> (u32, u32, u32) {
+        let start_ticks = self.astar(&target.pos()).arrive_ticks;
+
+        let contribution_per_tick = self.contribution_per_tick(job_type);
+
         //TODO: Harvest duration considers energy remaining
         let job_duration = match job_type {
             JobType::Harvest => self.ticks_to_live().unwrap_or(0),
@@ -230,13 +236,7 @@ impl JobProperties for screeps::StructureTower {
         }
     }
     fn job_runtime(&self, target: &dyn HasId, job_type: JobType) -> (u32, u32, u32) {
-        let amount = match job_type {
-            JobType::Repair => 800,
-            JobType::AttackR => 600,
-            JobType::DefendR => 600,
-            JobType::Heal => 400,
-            _ => 0,
-        };
+        let amount = self.contribution_per_tick(job_type);
 
         let range = self.pos().get_range_to(target).min(20).max(5);
         (0, 1, amount - (amount * (range - 5) / 20))
@@ -254,5 +254,15 @@ impl JobProperties for screeps::StructureTower {
     fn distance_to(&self, pos: &screeps::Position) -> u32 {
         let linear = self.pos().get_range_to(pos);
         linear
+    }
+
+    fn contribution_per_tick(&self, job_type: JobType) -> u32 {
+        match job_type {
+            JobType::Repair => 800,
+            JobType::AttackR => 600,
+            JobType::DefendR => 600,
+            JobType::Heal => 400,
+            _ => 0,
+        }
     }
 }

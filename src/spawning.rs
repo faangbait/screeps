@@ -1,5 +1,6 @@
 use crate::jobs::{JobProperties, JobType, SearchMove};
 use crate::{filters, flags};
+use log::info;
 use screeps::memory::MemoryReference;
 use screeps::{
     HasPosition, HasStore, Part, ResourceType, RoomObjectProperties, SharedCreepProperties,
@@ -55,30 +56,28 @@ pub fn get_needs(
         return needs;
     }
 
-    if harvesters
-        .iter()
-        .any(|c| c.get_active_bodyparts(screeps::Part::Work) < 5)
-    {
-        needs.push(Part::Move);
-        needs.extend(vec![Part::Work; 5]);
-        return needs;
-    }
-
-    // let drop_harvesters_parts = creeps
+    // if harvesters
     //     .iter()
-    //     .filter(|&c| {
-    //         c.store_capacity(Some(ResourceType::Energy)) == 0
-    //             && c.has_parts_for_job(JobType::Harvest)
-    //     })
-    //     .fold(0, |acc, cur| {
-    //         acc + cur.get_active_bodyparts(screeps::Part::Work)
-    //     });
-
-    // if drop_harvesters_parts < sources.len() as u32 * 5 {
+    //     .any(|c| c.get_active_bodyparts(screeps::Part::Work) < 5)
+    // {
     //     needs.push(Part::Move);
     //     needs.extend(vec![Part::Work; 5]);
     //     return needs;
-    // };
+    // }
+
+    let drop_harvesters_parts = creeps
+        .iter()
+        .filter(|&c| !c.has_parts_for_job(JobType::Pickup) && c.has_parts_for_job(JobType::Harvest))
+        .fold(0, |acc, cur| {
+            acc + cur.get_active_bodyparts(screeps::Part::Work)
+        });
+
+    info!("Drop harvester parts: {:?}", drop_harvesters_parts);
+    if drop_harvesters_parts < sources.len() as u32 * 5 {
+        needs.push(Part::Move);
+        needs.extend(vec![Part::Work; 5]);
+        return needs;
+    };
 
     let heavy_hauler_parts = creeps
         .iter()
@@ -337,6 +336,39 @@ impl JobProperties for BodyTemplate {
         return res;
     }
 
+    fn contribution_per_tick(&self, job_type: JobType) -> u32 {
+        match job_type {
+            JobType::Harvest => self.body.iter().filter(|&p| *p == Part::Work).count() as u32 * 2,
+            JobType::Build => self.body.iter().filter(|&p| *p == Part::Work).count() as u32 * 5,
+            JobType::Repair => self.body.iter().filter(|&p| *p == Part::Work).count() as u32 * 100,
+            JobType::Upgrade => self.body.iter().filter(|&p| *p == Part::Work).count() as u32 * 1,
+            JobType::Transfer => self.body.iter().filter(|&p| *p == Part::Carry).count() as u32, // TODO: None?
+            JobType::Withdraw => self.body.iter().filter(|&p| *p == Part::Carry).count() as u32, // TODO: None?
+            JobType::Pickup => self.body.iter().filter(|&p| *p == Part::Carry).count() as u32 * 50,
+            JobType::Claim => self.body.iter().filter(|&p| *p == Part::Claim).count() as u32,
+            JobType::Reserve => self.body.iter().filter(|&p| *p == Part::Claim).count() as u32,
+            JobType::Attack => self.body.iter().filter(|&p| *p == Part::Attack).count() as u32 * 30,
+            JobType::AttackR => {
+                self.body
+                    .iter()
+                    .filter(|&p| *p == Part::RangedAttack)
+                    .count() as u32
+                    * 10
+            }
+            JobType::Defend => self.body.iter().filter(|&p| *p == Part::Attack).count() as u32 * 30,
+            JobType::DefendR => {
+                self.body
+                    .iter()
+                    .filter(|&p| *p == Part::RangedAttack)
+                    .count() as u32
+                    * 10
+            }
+            JobType::Heal => self.body.iter().filter(|&p| *p == Part::Heal).count() as u32 * 12,
+            JobType::Station => 1,
+            JobType::Scout => 1,
+        }
+    }
+
     fn has_parts_for_job(&self, job_type: crate::jobs::JobType) -> bool {
         let bp_reqs = match job_type {
             JobType::Build => vec![Part::Move, Part::Carry, Part::Work],
@@ -380,24 +412,7 @@ impl JobProperties for BodyTemplate {
             Part::Move,
         ]);
 
-        let contribution_per_tick = match job_type {
-            JobType::Harvest => *body.get(5).unwrap_or(&0) * 2,
-            JobType::Build => *body.get(5).unwrap_or(&0) * 5,
-            JobType::Repair => *body.get(5).unwrap_or(&0) * 100,
-            JobType::Station => 1,
-            JobType::Upgrade => *body.get(5).unwrap_or(&0) * 5, // TODO: Check this
-            JobType::Transfer => *body.get(6).unwrap_or(&0) * 50,
-            JobType::Withdraw => *body.get(6).unwrap_or(&0) * 50,
-            JobType::Pickup => *body.get(6).unwrap_or(&0) * 50,
-            JobType::Claim => *body.get(1).unwrap_or(&0),
-            JobType::Reserve => *body.get(1).unwrap_or(&0),
-            JobType::Attack => *body.get(0).unwrap_or(&0) * 30,
-            JobType::AttackR => *body.get(3).unwrap_or(&0) * 10,
-            JobType::Defend => *body.get(0).unwrap_or(&0) * 30,
-            JobType::DefendR => *body.get(3).unwrap_or(&0) * 10,
-            JobType::Heal => *body.get(2).unwrap_or(&0) * 12,
-            JobType::Scout => *body.get(7).unwrap_or(&0).min(&1),
-        };
+        let contribution_per_tick = self.contribution_per_tick(job_type);
 
         //TODO: Harvest duration considers energy remaining
         let job_duration = match job_type {

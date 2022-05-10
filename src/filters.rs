@@ -37,10 +37,12 @@ pub fn get_hostility(
 }
 
 pub fn get_my_structures() -> Vec<screeps::Structure> {
-    get_my_rooms()
+    let mut structures = get_my_rooms()
         .iter()
         .flat_map(|room| room.find(screeps::find::STRUCTURES))
-        .collect()
+        .collect::<Vec<screeps::Structure>>();
+
+    structures
 }
 
 pub fn get_my_sources() -> Vec<screeps::Source> {
@@ -49,7 +51,8 @@ pub fn get_my_sources() -> Vec<screeps::Source> {
         .flat_map(|r| r.find(screeps::find::SOURCES))
         .collect::<Vec<screeps::Source>>();
 
-    sources.sort_by_key(|st| screeps::HasId::id(st));
+    sources.sort_by(|a, b| a.untyped_id().cmp(&b.untyped_id()));
+    sources.dedup_by(|a, b| a.untyped_id().eq(&b.untyped_id()));
     sources
 }
 
@@ -65,7 +68,7 @@ pub fn get_my_spawns() -> Vec<screeps::StructureSpawn> {
 //     todo!();
 // }
 
-use screeps::{Room, SharedCreepProperties};
+use screeps::{HasId, Room, SharedCreepProperties};
 
 pub fn get_my_containers() -> Vec<screeps::StructureContainer> {
     get_my_rooms()
